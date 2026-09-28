@@ -18,12 +18,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
-  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-4">
+  <div id="app" class="max-w-xl mx-auto min-h-screen flex flex-col p-4">
 
     <!-- 頂部導航 -->
     <header class="flex justify-between items-center py-2 border-b border-slate-200 mb-3">
       <div>
-        <h1 class="text-lg font-black text-indigo-600">🎯 團康禁說詞</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-black text-indigo-600">🎯 團康禁說詞</h1>
+          <span v-if="roomData && roomData.currentRound" class="text-xs bg-indigo-100 text-indigo-800 font-black px-1.5 py-0.5 rounded">
+            第 {{ roomData.currentRound }} 局
+          </span>
+        </div>
         <p v-if="roomId" class="text-xs text-slate-500">數字房號：<span class="font-mono font-black text-base text-indigo-700 tracking-wider">{{ roomId }}</span></p>
       </div>
       <div v-if="currentUid" class="text-right flex items-center gap-2">
@@ -39,7 +44,7 @@
     </header>
 
     <!-- 階段 1：大廳與登入 -->
-    <div v-if="step === 'lobby'" class="flex-1 flex flex-col justify-center space-y-4">
+    <div v-if="step === 'lobby'" class="flex-1 flex flex-col justify-center space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <h2 class="text-base font-bold text-slate-700">加入遊戲</h2>
         <div>
@@ -65,13 +70,22 @@
     </div>
 
     <!-- 階段 2：等待室 -->
-    <div v-else-if="roomData && roomData.status === 'waiting'" class="flex-1 flex flex-col space-y-4">
+    <div v-else-if="roomData && roomData.status === 'waiting'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <h3 class="font-bold text-sm text-slate-700 mb-2">玩家名單 ({{ playerCount }}/10 人)</h3>
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-bold text-sm text-slate-700">玩家名單 ({{ playerCount }}/10 人)</h3>
+          <span class="text-xs text-indigo-600 font-bold">累積戰況</span>
+        </div>
         <ul class="divide-y divide-slate-100 text-sm">
           <li v-for="(p, uid) in roomData.players" :key="uid" class="py-2 flex justify-between items-center">
-            <span>{{ p.name }} <span v-if="uid === currentUid" class="text-xs text-indigo-500 font-medium">(你)</span></span>
-            <span v-if="p.isHost" class="text-xs text-amber-600 font-bold">房主</span>
+            <span>
+              {{ p.name }} 
+              <span v-if="uid === currentUid" class="text-xs text-indigo-500 font-medium">(你)</span>
+              <span v-if="p.isHost" class="ml-1 text-xs text-amber-600 font-bold">房主</span>
+            </span>
+            <span class="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+              累積：{{ p.totalScore || 0 }} 分
+            </span>
           </li>
         </ul>
         <p v-if="playerCount < 3" class="text-xs text-rose-500 mt-2 font-medium">至少需 3 人才能開始。</p>
@@ -79,7 +93,7 @@
 
       <!-- 房主設定面板 -->
       <div v-if="isHost" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-        <h3 class="font-bold text-sm text-slate-700">房主設定</h3>
+        <h3 class="font-bold text-sm text-slate-700">第 {{ roomData.currentRound || 1 }} 局設定</h3>
         <div>
           <label class="block text-xs text-slate-500 mb-1">禁說詞類別與限制條件</label>
           <input v-model="categoryRulesInput" type="text" placeholder="例：動作、三個字、感嘆詞" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
@@ -95,20 +109,26 @@
                 class="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-indigo-700 transition">
           {{ assignModeInput === 'manual' ? '進入自由選人環節 ➔' : '隨機配對並開始寫題 ➔' }}
         </button>
+
+        <div class="pt-2 text-center border-t border-slate-100">
+          <button @click="resetAllScores" class="text-xs text-rose-500 hover:text-rose-700 underline font-medium">
+            ⚠️ 重新開始大賽（重置全員累積總分）
+          </button>
+        </div>
       </div>
       <div v-else class="bg-slate-50 p-4 rounded-xl text-center text-xs text-slate-500">
-        等待房主設定規則並啟動...
+        等待房主設定規則並啟動第 {{ roomData.currentRound || 1 }} 局...
       </div>
     </div>
 
     <!-- 階段 2.5：環狀視覺化選人環節 -->
-    <div v-else-if="roomData && roomData.status === 'picking'" class="flex-1 flex flex-col space-y-4">
+    <div v-else-if="roomData && roomData.status === 'picking'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-900">
-        <span class="font-bold block mb-0.5">🤝 環狀認領階段：</span>
-        <span>選擇想出題的對象並確認。箭頭代表「誰為誰出題」，所有人必須連成有效迴圈！</span>
+        <span class="font-bold block mb-0.5">🤝 第 {{ roomData.currentRound || 1 }} 局認領：</span>
+        <span>選擇想出題的對象並確認。所有人必須連成有效迴圈！</span>
       </div>
 
-      <!-- 環狀 SVG 圖表 -->
+      <!-- 環狀圖表 -->
       <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
         <div class="w-full flex justify-between items-center px-2 mb-1 text-xs">
           <span class="font-bold text-slate-700">即時配對關係圖</span>
@@ -117,7 +137,7 @@
           </span>
         </div>
 
-        <svg viewBox="0 0 320 320" class="w-full max-w-[280px] aspect-square overflow-visible">
+        <svg viewBox="0 0 320 320" class="w-full max-w-[260px] aspect-square overflow-visible">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M 0 1 L 10 5 L 0 9 z" fill="#6366f1" />
@@ -127,17 +147,14 @@
             </marker>
           </defs>
 
-          <!-- 連線箭頭 -->
           <g v-for="link in circleLinks" :key="link.from + '-' + link.to">
             <path :d="link.d" fill="none" 
                   :stroke="link.isMe ? '#ec4899' : '#6366f1'" 
                   :stroke-width="link.isMe ? '3' : '2'" 
-                  :marker-end="link.isMe ? 'url(#arrow-me)' : 'url(#arrow)'"
-                  class="transition-all duration-300" />
+                  :marker-end="link.isMe ? 'url(#arrow-me)' : 'url(#arrow)'" />
           </g>
 
-          <!-- 節點 -->
-          <g v-for="node in circleNodes" :key="node.uid" :transform="`translate(${node.x}, ${node.y})`" class="transition-transform duration-300">
+          <g v-for="node in circleNodes" :key="node.uid" :transform="`translate(${node.x}, ${node.y})`">
             <circle r="22" 
                     :fill="node.isMe ? '#4f46e5' : (node.hasTarget ? '#e0e7ff' : '#f8fafc')" 
                     :stroke="node.isMe ? '#ec4899' : (node.hasTarget ? '#6366f1' : '#cbd5e1')" 
@@ -202,11 +219,11 @@
       </div>
     </div>
 
-    <!-- 階段 3：出題與審核 (Veto) 階段 -->
-    <div v-else-if="roomData && roomData.status === 'setting'" class="flex-1 flex flex-col space-y-4">
+    <!-- 階段 3：出題與審核 (Veto) 階段 (加入靈感按鈕) -->
+    <div v-else-if="roomData && roomData.status === 'setting'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl text-xs text-indigo-900 flex justify-between items-center">
         <div>
-          <span class="font-bold block mb-0.5">📋 出題限制條件：</span>
+          <span class="font-bold block mb-0.5">📋 第 {{ roomData.currentRound || 1 }} 局限制條件：</span>
           <span>{{ roomData.categoryRules || '無特殊限制' }}</span>
         </div>
         <div class="text-right">
@@ -225,13 +242,19 @@
         </div>
 
         <div>
-          <label class="block text-xs text-slate-500 mb-1">禁說詞內容</label>
-          <input v-model="wordInput" type="text" placeholder="例如：然後、抓頭、好酷" maxlength="15" 
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs text-slate-500">禁說詞內容</label>
+            <button @click="pickRandomIdea" type="button" 
+                    class="text-[11px] bg-amber-50 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-full hover:bg-amber-100 flex items-center gap-1 font-bold">
+              🎲 抽靈感題目
+            </button>
+          </div>
+          <input v-model="wordInput" type="text" placeholder="例如：然後、好酷、真的假的" maxlength="15" 
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
         </div>
         <div>
           <label class="block text-xs text-slate-500 mb-1">類別標記（選填）</label>
-          <input v-model="wordCategoryInput" type="text" placeholder="例如：口頭禪 / 肢體動作" maxlength="10" 
+          <input v-model="wordCategoryInput" type="text" placeholder="例如：口頭禪 / 語助詞" maxlength="10" 
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
         </div>
 
@@ -241,7 +264,7 @@
         </button>
       </div>
 
-      <!-- 題目審核清單 (隱藏本人被出的題，其他人皆看得到前次被否決詞) -->
+      <!-- 題目審核清單 -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">題目審核 (滿 1/3 反對即退回)</h3>
@@ -264,7 +287,6 @@
             <span v-if="item.category" class="text-xs text-slate-500 ml-1">[{{ item.category }}]</span>
           </div>
 
-          <!-- 所有人（除受測者外）皆看得到上一個被否決的詞彙 -->
           <div v-if="item.lastVetoedWord" class="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-[11px] font-medium">
             ⚠️ 上一次被否決的詞：<span class="line-through font-bold text-rose-700">{{ item.lastVetoedWord }}</span>
           </div>
@@ -292,14 +314,59 @@
       </div>
     </div>
 
-    <!-- 階段 4：正式遊戲進行中 -->
-    <div v-else-if="roomData && roomData.status === 'playing'" class="flex-1 flex flex-col space-y-4">
-      <div class="bg-indigo-600 text-white p-3 rounded-xl shadow flex justify-between items-center">
-        <div>
-          <span class="text-xs opacity-80">遊戲進行中</span>
-          <h2 class="text-base font-bold">禁說詞看板</h2>
+    <!-- 階段 4：正式遊戲進行中 (包含盲猜反殺按鈕、音效、即時排行榜) -->
+    <div v-else-if="roomData && roomData.status === 'playing'" class="flex-1 flex flex-col space-y-3">
+      
+      <!-- 📢 即時戰報廣播條 -->
+      <div v-if="roomData.latestEvent" class="bg-rose-600 text-white px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-lg animate-bounce">
+        <div class="flex items-center gap-1.5 truncate">
+          <span class="text-base">📢</span>
+          <span class="font-bold truncate">{{ roomData.latestEvent.text }}</span>
         </div>
-        <span class="text-xs bg-indigo-700 px-2 py-1 rounded-md">存活：{{ aliveCount }} 人</span>
+        <span class="text-[10px] opacity-80 shrink-0 ml-2">即時戰況</span>
+      </div>
+
+      <!-- 💀 本人出局專屬揭曉橫幅 -->
+      <div v-if="amIEliminated" class="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 text-center space-y-1 shadow-lg">
+        <div class="text-xs text-rose-400 font-bold">💀 你已被淘汰出局！</div>
+        <div class="text-xs text-slate-300">
+          你的禁說詞其實是：<span class="text-base font-black text-rose-400 underline decoration-rose-500">{{ myRevealedWord }}</span>
+        </div>
+        <div class="text-[10px] text-slate-400">
+          本局獲得：{{ roomData.players[currentUid]?.roundScore || 0 }} 分 | 累積總分：{{ roomData.players[currentUid]?.totalScore || 0 }} 分
+        </div>
+      </div>
+
+      <!-- ⚡ 存活玩家專屬：發動「盲猜反殺」按鈕列 -->
+      <div v-if="!amIEliminated && roomData.players[currentUid]?.status === 'alive'" class="bg-gradient-to-r from-amber-500 to-orange-500 p-2.5 rounded-xl shadow text-white flex justify-between items-center">
+        <div>
+          <span class="font-black text-xs block">🔥 覺得猜出自己的詞了？</span>
+          <span class="text-[10px] opacity-90">猜對搶走全場分數；猜錯直接自爆出局！</span>
+        </div>
+        <button @click="triggerBlindGuessChallenge" 
+                class="bg-white text-orange-600 font-black px-3 py-1.5 rounded-lg text-xs shadow hover:bg-orange-50 active:scale-95 transition">
+          ⚡ 發動盲猜！
+        </button>
+      </div>
+
+      <!-- 頂部切換標籤 -->
+      <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex gap-1">
+          <button @click="playingTab = 'cards'" 
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold transition md:hidden"
+                  :class="playingTab === 'cards' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'">
+            🎯 看板 ({{ aliveCount }}人存活)
+          </button>
+          <button @click="playingTab = 'scores'" 
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold transition md:hidden"
+                  :class="playingTab === 'scores' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'">
+            🏆 即時總分榜
+          </button>
+          <span class="hidden md:inline font-bold text-xs text-indigo-700 py-1.5 px-2">
+            進行中看板 (存活 {{ aliveCount }} 人)
+          </span>
+        </div>
+        <span class="text-xs font-bold text-indigo-600 pr-1">第 {{ roomData.currentRound || 1 }} 局</span>
       </div>
 
       <!-- 撤銷（Undo）按鈕 -->
@@ -310,44 +377,84 @@
         </button>
       </div>
 
-      <!-- 看板清單 (除自己以外所有人) -->
-      <div class="space-y-3">
-        <div v-for="(p, uid) in otherPlayers" :key="uid" 
-             class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-200"
-             :class="{'opacity-60 bg-slate-50': p.status === 'eliminated'}">
-          <div class="flex justify-between items-start">
-            <div>
-              <div class="flex items-center space-x-1.5">
-                <span class="font-bold text-base text-slate-800">{{ p.name }}</span>
-                <span v-if="p.status === 'eliminated'" class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold">
-                  第 {{ p.rank }} 位出局 (+{{ p.score }}分)
-                </span>
-                <span v-else class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">存活</span>
+      <!-- 雙欄內容區 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 items-start">
+        
+        <!-- 左欄：禁說詞看板 -->
+        <div class="space-y-3" :class="{'hidden md:block': playingTab !== 'cards'}">
+          <div class="text-xs font-bold text-slate-400 px-1 md:block hidden">🎯 其他玩家禁說詞</div>
+          <div v-for="(p, uid) in otherPlayers" :key="uid" 
+               class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-200"
+               :class="{'opacity-60 bg-slate-50': p.status === 'eliminated'}">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-base text-slate-800">{{ p.name }}</span>
+                  <span v-if="p.status === 'eliminated'" class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                    第 {{ p.rank }} 位出局 (本局+{{ p.roundScore }}分)
+                  </span>
+                  <span v-else class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">存活中</span>
+                </div>
+                <div class="mt-1">
+                  <span class="text-xs text-slate-400">禁說詞：</span>
+                  <span class="text-lg font-black text-rose-600 tracking-wider">
+                    {{ wordsData[uid] ? wordsData[uid].word : '(無)' }}
+                  </span>
+                  <span v-if="wordsData[uid] && wordsData[uid].category" class="text-xs text-slate-500 ml-1">
+                    [{{ wordsData[uid].category }}]
+                  </span>
+                </div>
               </div>
-              <div class="mt-1">
-                <span class="text-xs text-slate-400">禁說詞：</span>
-                <span class="text-lg font-black text-rose-600 tracking-wider">
-                  {{ wordsData[uid] ? wordsData[uid].word : '(無)' }}
-                </span>
-                <span v-if="wordsData[uid] && wordsData[uid].category" class="text-xs text-slate-500 ml-1">
-                  [{{ wordsData[uid].category }}]
-                </span>
-              </div>
-            </div>
 
-            <div v-if="isHost && p.status !== 'eliminated'" class="text-right">
-              <button @click="openEliminateModal(uid)" class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 shadow-sm">
-                抓到！
-              </button>
+              <!-- 房主抓到按鈕 -->
+              <div v-if="isHost && p.status !== 'eliminated'" class="text-right">
+                <button @click="openEliminateModal(uid)" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition">
+                  抓到！
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
+        <!-- 右欄：即時累積總積分榜 -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-2.5" 
+             :class="{'hidden md:block': playingTab !== 'scores'}">
+          <div class="flex justify-between items-center border-b pb-2">
+            <h3 class="font-bold text-sm text-slate-700 flex items-center gap-1">
+              🏆 累積總積分榜 (第 {{ roomData.currentRound || 1 }} 局)
+            </h3>
+            <span class="text-[11px] text-slate-400">即時連線</span>
+          </div>
+
+          <div class="divide-y divide-slate-100 text-xs">
+            <div v-for="(p, idx) in liveScoreList" :key="p.uid" 
+                 class="py-2.5 flex justify-between items-center"
+                 :class="{'font-bold text-indigo-700': p.uid === currentUid}">
+              <div class="flex items-center gap-2">
+                <span class="w-5 text-center font-black" :class="idx === 0 ? 'text-amber-500 text-sm' : 'text-slate-400'">
+                  {{ idx + 1 }}
+                </span>
+                <div>
+                  <span class="text-slate-800">{{ p.name }} <span v-if="p.uid === currentUid">(你)</span></span>
+                  <span class="block text-[10px]" :class="p.status === 'eliminated' ? 'text-rose-500' : 'text-emerald-600'">
+                    {{ p.status === 'eliminated' ? `第 ${p.rank} 名出局` : '存活中' }} (本局 +{{ p.roundScore || 0 }})
+                  </span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-black text-indigo-600">{{ p.totalScore || 0 }} 分</span>
+                <span class="block text-[10px] text-slate-400">累積</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- 房主結算與中途換人 -->
       <div v-if="isHost" class="pt-2 space-y-2 mt-auto">
         <button @click="endGameAndScore" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition">
-          結束遊戲並顯示結算榜
+          結束本局並顯示結算榜
         </button>
         <button @click="showTransferModal = !showTransferModal" class="w-full text-center text-xs text-slate-400 hover:text-slate-600 underline">
           中途移交計分員/房主
@@ -363,31 +470,44 @@
     </div>
 
     <!-- 階段 5：總結算畫面 -->
-    <div v-else-if="roomData && roomData.status === 'ended'" class="flex-1 flex flex-col space-y-4">
+    <div v-else-if="roomData && roomData.status === 'ended'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center space-y-3">
-        <h2 class="text-xl font-black text-slate-800">🏆 本局積分排行榜</h2>
-        <p class="text-xs text-slate-500">名次分（1, 2, ...）+ 引誘加分（每位 +2 分）</p>
+        <h2 class="text-xl font-black text-slate-800">🏆 累積總積分排行榜</h2>
+        <p class="text-xs text-slate-500">已進行完第 {{ roomData.currentRound || 1 }} 局 | 依累積總得分排名</p>
 
         <div class="divide-y divide-slate-100 text-sm pt-2">
-          <div v-for="res in sortedResults" :key="res.uid" class="py-2.5 flex justify-between items-center">
-            <div class="text-left">
-              <span class="font-bold text-slate-800">{{ res.name }}</span>
-              <span class="text-xs text-slate-400 block">他的詞：{{ res.word }}</span>
+          <div v-for="(res, idx) in sortedResults" :key="res.uid" class="py-3 flex justify-between items-center">
+            <div class="text-left flex items-center gap-2">
+              <span class="w-6 font-black text-base" :class="idx === 0 ? 'text-amber-500' : 'text-slate-400'">
+                {{ idx + 1 }}
+              </span>
+              <div>
+                <span class="font-bold text-slate-800">{{ res.name }} <span v-if="res.uid === currentUid" class="text-xs text-indigo-500">(你)</span></span>
+                <span class="text-xs text-slate-400 block">本局題目：{{ res.word }}</span>
+              </div>
             </div>
             <div class="text-right">
-              <span class="font-black text-indigo-600 text-lg">{{ res.score }} 分</span>
-              <span class="block text-[10px] text-slate-400">名次：第 {{ res.rank }} 名</span>
+              <span class="font-black text-indigo-600 text-lg">{{ res.totalScore }} 分</span>
+              <span class="block text-[11px] text-emerald-600 font-medium">本局 +{{ res.roundScore }} 分 (第 {{ res.rank }} 名)</span>
             </div>
           </div>
         </div>
 
-        <button v-if="isHost" @click="resetRoom" class="w-full mt-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">
-          再玩一局（保留玩家名單）
-        </button>
+        <div v-if="isHost" class="space-y-2 pt-3">
+          <button @click="resetRoom" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow transition">
+            再玩一局（累積總分，進入第 {{ (roomData.currentRound || 1) + 1 }} 局）➔
+          </button>
+          <button @click="resetAllScores" class="w-full text-center text-xs text-rose-500 hover:text-rose-700 underline font-medium py-1">
+            ⚠️ 結束本次大賽，將全員累積總分歸零
+          </button>
+        </div>
+        <div v-else class="text-xs text-slate-400 pt-2">
+          等待房主開啟第 {{ (roomData.currentRound || 1) + 1 }} 局...
+        </div>
       </div>
     </div>
 
-    <!-- 淘汰彈窗 -->
+    <!-- 淘汰彈窗 (一般抓到) -->
     <div v-if="eliminatingTargetUid" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-4 shadow-xl">
         <h3 class="font-bold text-slate-800 text-sm">
@@ -426,6 +546,36 @@
       </div>
     </div>
 
+    <!-- ⚡ 房主專屬：盲猜反殺審判彈窗 -->
+    <div v-if="isHost && roomData && roomData.pendingGuess" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-4 shadow-2xl border-2 border-amber-500">
+        <div class="text-center">
+          <span class="text-xs font-black text-amber-600 uppercase tracking-widest">⚡ 盲猜反殺審判</span>
+          <h3 class="font-black text-slate-800 text-base mt-1">
+            【{{ roomData.pendingGuess.name }}】正在大聲猜詞！
+          </h3>
+          <p class="text-xs text-slate-500 mt-1">
+            請聽他口頭喊出的詞，核對全場看板判定：
+          </p>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <button @click="judgeBlindGuess(true)" 
+                  class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition">
+            🎉 猜對了！（其他所有人 -1 分，他獨得大獎）
+          </button>
+          <button @click="judgeBlindGuess(false)" 
+                  class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow transition">
+            💀 猜錯自爆！（他出局，其他所有人各 +1 分）
+          </button>
+          <button @click="dismissBlindGuess" 
+                  class="w-full py-1 text-slate-400 hover:text-slate-600 text-[11px] underline">
+            誤觸取消
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -443,6 +593,60 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
+    // 內建派對高頻題庫（免資料庫、免 AI）
+    const PARTY_IDEAS = [
+      "真的假的", "笑死", "屁啦", "蛤", "所以勒", "確實", "要確定捏", "沒事啦", "太誇張了",
+      "好好笑", "隨便", "我不知道", "等等", "真的", "不行", "好餓", "先不要", "傻眼",
+      "太扯了", "超讚", "你看", "為什麼", "有嗎", "你幹嘛", "喝水", "手機", "廁所", "喝酒"
+    ];
+
+    // Web Audio 合成音效（免載入 MP3）
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playBuzzerSound() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(110, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      } catch(e) {}
+    }
+
+    function playWinSound() {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, now + idx * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.3);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.1);
+          osc.stop(now + idx * 0.1 + 0.35);
+        });
+      } catch(e) {}
+    }
+
+    function triggerVibration(pattern = [200, 100, 200]) {
+      if (navigator.vibrate) navigator.vibrate(pattern);
+    }
+
     const { createApp, ref, computed, onMounted } = Vue;
 
     createApp({
@@ -457,7 +661,9 @@
         const wordsData = ref({});
         const activeWordListeners = {};
 
-        const categoryRulesInput = ref('名詞、動作、感嘆詞');
+        const playingTab = ref('cards');
+
+        const categoryRulesInput = ref('口頭禪、高頻詞、常態動詞');
         const assignModeInput = ref('random');
         const localSelectedTarget = ref('');
         const wordInput = ref('');
@@ -469,8 +675,10 @@
         const eliminatingTargetUid = ref(null);
         const lureHelper1 = ref('');
         const lureHelper2 = ref('');
+        const myRevealedWord = ref('');
 
-        // 初始化與斷線/重整自動恢復
+        let lastEventTimestamp = 0;
+
         onMounted(() => {
           auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -480,7 +688,6 @@
               currentUid.value = cred.user.uid;
             }
 
-            // 檢查 localStorage 是否已有暫存的房間資料
             const cachedRoomId = localStorage.getItem('taboo_roomId');
             const cachedNickname = localStorage.getItem('taboo_nickname');
 
@@ -500,17 +707,34 @@
           roomId.value = rId;
           step.value = 'inRoom';
 
-          // 儲存至 localStorage 供重整恢復
           localStorage.setItem('taboo_roomId', rId);
           localStorage.setItem('taboo_nickname', nickname.value);
 
           db.ref(`rooms/${rId}/public`).on('value', (snap) => {
-            roomData.value = snap.val();
+            roomData.value = snap.val() ? JSON.parse(JSON.stringify(snap.val())) : null;
             syncWordListeners(rId);
+
+            // 廣播音效與震動偵測
+            if (roomData.value?.latestEvent && roomData.value.latestEvent.timestamp > lastEventTimestamp) {
+              lastEventTimestamp = roomData.value.latestEvent.timestamp;
+              if (roomData.value.latestEvent.isWin) {
+                playWinSound();
+                triggerVibration([100, 50, 100, 50, 200]);
+              } else {
+                playBuzzerSound();
+                triggerVibration([250, 100, 250]);
+              }
+            }
+
+            // 淘汰揭曉
+            if (roomData.value?.players?.[currentUid.value]?.status === 'eliminated' && !myRevealedWord.value) {
+              db.ref(`rooms/${rId}/words/${currentUid.value}/word`).once('value').then(wSnap => {
+                if (wSnap.exists()) myRevealedWord.value = wSnap.val();
+              });
+            }
           });
         };
 
-        // 核心修正：強制覆寫響應式物件，確保所有評審畫面即刻更新
         const syncWordListeners = (rId) => {
           if (!roomData.value?.players) return;
           Object.keys(roomData.value.players).forEach((pUid) => {
@@ -529,6 +753,12 @@
           });
         };
 
+        const pickRandomIdea = () => {
+          const rand = PARTY_IDEAS[Math.floor(Math.random() * PARTY_IDEAS.length)];
+          wordInput.value = rand;
+          wordCategoryInput.value = "口頭禪/高頻詞";
+        };
+
         const leaveRoom = () => {
           if (!confirm('確定要離開當前房間嗎？')) return;
           localStorage.removeItem('taboo_roomId');
@@ -537,6 +767,7 @@
 
         const createRoom = async () => {
           if (!nicknameInput.value.trim()) return alert('請先輸入暱稱！');
+          initAudio();
           nickname.value = nicknameInput.value.trim();
           const newRoomId = Math.floor(1000 + Math.random() * 9000).toString();
           const initialData = {
@@ -544,13 +775,18 @@
             hostId: currentUid.value,
             categoryRules: '',
             assignMode: 'random',
+            currentRound: 1,
             wordStatus: {},
             eliminationHistory: [],
+            latestEvent: null,
+            pendingGuess: null,
             players: {
               [currentUid.value]: {
                 name: nickname.value,
                 isHost: true,
                 status: 'alive',
+                totalScore: 0,
+                roundScore: 0,
                 score: 0
               }
             }
@@ -564,6 +800,7 @@
           if (!roomInput.value.trim() || roomInput.value.trim().length !== 4) {
             return alert('請輸入 4 位數純數字房號！');
           }
+          initAudio();
           nickname.value = nicknameInput.value.trim();
           const rId = roomInput.value.trim();
           const snap = await db.ref(`rooms/${rId}/public`).once('value');
@@ -573,6 +810,8 @@
             name: nickname.value,
             isHost: false,
             status: 'alive',
+            totalScore: 0,
+            roundScore: 0,
             score: 0
           });
           bindRoom(rId);
@@ -590,6 +829,20 @@
         const myAssignedTargetUid = computed(() => roomData.value?.players?.[currentUid.value]?.assignedTarget || '');
         const aliveCount = computed(() => Object.values(roomData.value?.players || {}).filter(p => p.status === 'alive').length);
         const vetoThreshold = computed(() => Math.ceil((playerCount.value - 1) / 3));
+
+        const amIEliminated = computed(() => roomData.value?.players?.[currentUid.value]?.status === 'eliminated');
+
+        const liveScoreList = computed(() => {
+          if (!roomData.value?.players) return [];
+          return Object.entries(roomData.value.players).map(([uid, p]) => ({
+            uid,
+            name: p.name,
+            totalScore: p.totalScore ?? p.score ?? 0,
+            roundScore: p.roundScore || 0,
+            status: p.status,
+            rank: p.rank
+          })).sort((a, b) => b.totalScore - a.totalScore);
+        });
 
         const mySecretWordStatus = computed(() => {
           const st = roomData.value?.wordStatus?.[currentUid.value];
@@ -705,6 +958,7 @@
         };
 
         const startInitialPhase = async () => {
+          initAudio();
           const updates = {
             categoryRules: categoryRulesInput.value,
             assignMode: assignModeInput.value,
@@ -749,7 +1003,6 @@
           return res;
         });
 
-        // 提交題目：只保留「上一次被否決的詞」
         const submitWord = async () => {
           const tUid = myAssignedTargetUid.value;
           if (!tUid) return alert('系統尚未指派你的出題對象！');
@@ -759,11 +1012,8 @@
             const snap = await db.ref(`rooms/${roomId.value}/words/${tUid}`).once('value');
             const prev = snap.val();
 
-            // 若先前已有送出過題目，記錄為 lastVetoedWord
             let lastVetoed = '';
-            if (prev && prev.word) {
-              lastVetoed = prev.word;
-            }
+            if (prev && prev.word) lastVetoed = prev.word;
 
             const payload = {
               authorUid: currentUid.value,
@@ -774,8 +1024,6 @@
             };
 
             await db.ref(`rooms/${roomId.value}/words/${tUid}`).set(payload);
-            
-            // 同步寫入公開就緒狀態
             await db.ref(`rooms/${roomId.value}/public/wordStatus/${tUid}`).set({
               hasWord: true,
               isVetoed: false
@@ -829,36 +1077,158 @@
         });
 
         const startGamePlay = async () => {
-          await db.ref(`rooms/${roomId.value}/public`).update({ status: 'playing' });
+          initAudio();
+          await db.ref(`rooms/${roomId.value}/public`).update({ 
+            status: 'playing',
+            latestEvent: null,
+            pendingGuess: null
+          });
+        };
+
+        // 發動盲猜
+        const triggerBlindGuessChallenge = async () => {
+          if (!confirm('⚡ 確定要發動盲猜反殺嗎？\n請準備好向全場大聲喊出你猜的禁說詞！\n\n猜對：其他人皆 -1 分，你獨得這些分數！\n猜錯：你直接自爆出局，其他人皆 +1 分！')) return;
+          initAudio();
+          await db.ref(`rooms/${roomId.value}/public/pendingGuess`).set({
+            uid: currentUid.value,
+            name: nickname.value
+          });
+          await db.ref(`rooms/${roomId.value}/public/latestEvent`).set({
+            text: `🚨【${nickname.value}】發動了盲猜反殺！正在大聲猜詞中...`,
+            timestamp: Date.now(),
+            isWin: false
+          });
+        };
+
+        // 房主判定盲猜結果
+        const judgeBlindGuess = async (isCorrect) => {
+          const guesserUid = roomData.value.pendingGuess.uid;
+          const guesserName = roomData.value.pendingGuess.name;
+          const totalOthers = playerCount.value - 1;
+          const updates = {};
+          const history = roomData.value.eliminationHistory || [];
+
+          if (isCorrect) {
+            // 猜對：其他人 -1 分，猜對者獨得 (playerCount - 1) 分，本局以第 1 名安全奪冠
+            Object.keys(roomData.value.players).forEach(u => {
+              const p = roomData.value.players[u];
+              const curTotal = p.totalScore ?? 0;
+              const curRound = p.roundScore || 0;
+              if (u === guesserUid) {
+                updates[`players/${u}/roundScore`] = curRound + totalOthers;
+                updates[`players/${u}/totalScore`] = curTotal + totalOthers;
+                updates[`players/${u}/score`] = curTotal + totalOthers;
+                updates[`players/${u}/rank`] = 1;
+              } else {
+                updates[`players/${u}/roundScore`] = curRound - 1;
+                updates[`players/${u}/totalScore`] = curTotal - 1;
+                updates[`players/${u}/score`] = curTotal - 1;
+              }
+            });
+
+            updates['latestEvent'] = {
+              text: `🎉【${guesserName}】盲猜成功！其他人各 -1 分，${guesserName} 獨拿 +${totalOthers} 分！`,
+              timestamp: Date.now(),
+              isWin: true
+            };
+          } else {
+            // 猜錯：猜對者直接出局（獲得現有名次分），其他所有人各 +1 分
+            const rank = history.length + 1;
+            const curTargetTotal = roomData.value.players[guesserUid]?.totalScore ?? 0;
+            const curTargetRound = roomData.value.players[guesserUid]?.roundScore || 0;
+
+            updates[`players/${guesserUid}/status`] = 'eliminated';
+            updates[`players/${guesserUid}/rank`] = rank;
+            updates[`players/${guesserUid}/roundScore`] = curTargetRound + rank;
+            updates[`players/${guesserUid}/totalScore`] = curTargetTotal + rank;
+            updates[`players/${guesserUid}/score`] = curTargetTotal + rank;
+
+            Object.keys(roomData.value.players).forEach(u => {
+              if (u !== guesserUid) {
+                const p = roomData.value.players[u];
+                const cT = p.totalScore ?? 0;
+                const cR = p.roundScore || 0;
+                updates[`players/${u}/roundScore`] = cR + 1;
+                updates[`players/${u}/totalScore`] = cT + 1;
+                updates[`players/${u}/score`] = cT + 1;
+              }
+            });
+
+            history.push({ targetUid: guesserUid, rank, helpers: [] });
+            updates['eliminationHistory'] = history;
+
+            updates['latestEvent'] = {
+              text: `💀【${guesserName}】盲猜失敗自爆出局！(第 ${rank} 位)，其餘所有人各 +1 分！`,
+              timestamp: Date.now(),
+              isWin: false
+            };
+          }
+
+          updates['pendingGuess'] = null;
+          await db.ref(`rooms/${roomId.value}/public`).update(updates);
+        };
+
+        const dismissBlindGuess = async () => {
+          await db.ref(`rooms/${roomId.value}/public/pendingGuess`).remove();
         };
 
         const openEliminateModal = (uid) => {
+          initAudio();
           eliminatingTargetUid.value = uid;
           lureHelper1.value = '';
           lureHelper2.value = '';
         };
 
+        // 一般淘汰
         const confirmElimination = async () => {
           const tUid = eliminatingTargetUid.value;
+          const tName = roomData.value.players[tUid]?.name || '玩家';
           const history = roomData.value.eliminationHistory || [];
           const rank = history.length + 1;
 
           const helpers = [];
-          if (lureHelper1.value) helpers.push(lureHelper1.value);
-          if (lureHelper2.value && lureHelper2.value !== lureHelper1.value) helpers.push(lureHelper2.value);
+          const helperNames = [];
+          if (lureHelper1.value) {
+            helpers.push(lureHelper1.value);
+            helperNames.push(roomData.value.players[lureHelper1.value]?.name);
+          }
+          if (lureHelper2.value && lureHelper2.value !== lureHelper1.value) {
+            helpers.push(lureHelper2.value);
+            helperNames.push(roomData.value.players[lureHelper2.value]?.name);
+          }
 
           const updates = {};
+          const curTargetTotal = roomData.value.players[tUid]?.totalScore ?? 0;
+          const curTargetRound = roomData.value.players[tUid]?.roundScore || 0;
+
           updates[`players/${tUid}/status`] = 'eliminated';
           updates[`players/${tUid}/rank`] = rank;
-          updates[`players/${tUid}/score`] = (roomData.value.players[tUid].score || 0) + rank;
+          updates[`players/${tUid}/roundScore`] = curTargetRound + rank;
+          updates[`players/${tUid}/totalScore`] = curTargetTotal + rank;
+          updates[`players/${tUid}/score`] = curTargetTotal + rank;
 
           helpers.forEach(hUid => {
-            const curScore = roomData.value.players[hUid]?.score || 0;
-            updates[`players/${hUid}/score`] = curScore + 2;
+            const curHelperTotal = roomData.value.players[hUid]?.totalScore ?? 0;
+            const curHelperRound = roomData.value.players[hUid]?.roundScore || 0;
+            updates[`players/${hUid}/roundScore`] = curHelperRound + 2;
+            updates[`players/${hUid}/totalScore`] = curHelperTotal + 2;
+            updates[`players/${hUid}/score`] = curHelperTotal + 2;
           });
 
           history.push({ targetUid: tUid, rank, helpers });
           updates['eliminationHistory'] = history;
+
+          let broadcastText = `【${tName}】說出禁詞出局！(第 ${rank} 位)`;
+          if (helperNames.length > 0) {
+            broadcastText += `，由【${helperNames.join('、')}】引誘成功 (+2分)`;
+          } else {
+            broadcastText += `（自爆）`;
+          }
+          updates['latestEvent'] = {
+            text: broadcastText,
+            timestamp: Date.now(),
+            isWin: false
+          };
 
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
           eliminatingTargetUid.value = null;
@@ -876,15 +1246,30 @@
           const last = history.pop();
 
           const updates = {};
+          const tTotal = roomData.value.players[last.targetUid]?.totalScore ?? 0;
+          const tRound = roomData.value.players[last.targetUid]?.roundScore ?? 0;
+
           updates[`players/${last.targetUid}/status`] = 'alive';
           updates[`players/${last.targetUid}/rank`] = null;
-          updates[`players/${last.targetUid}/score`] = Math.max(0, (roomData.value.players[last.targetUid].score || 0) - last.rank);
+          updates[`players/${last.targetUid}/roundScore`] = Math.max(0, tRound - last.rank);
+          updates[`players/${last.targetUid}/totalScore`] = Math.max(0, tTotal - last.rank);
+          updates[`players/${last.targetUid}/score`] = Math.max(0, tTotal - last.rank);
 
           (last.helpers || []).forEach(hUid => {
-            updates[`players/${hUid}/score`] = Math.max(0, (roomData.value.players[hUid]?.score || 0) - 2);
+            const hTotal = roomData.value.players[hUid]?.totalScore ?? 0;
+            const hRound = roomData.value.players[hUid]?.roundScore ?? 0;
+            updates[`players/${hUid}/roundScore`] = Math.max(0, hRound - 2);
+            updates[`players/${hUid}/totalScore`] = Math.max(0, hTotal - 2);
+            updates[`players/${hUid}/score`] = Math.max(0, hTotal - 2);
           });
 
           updates['eliminationHistory'] = history;
+          updates['latestEvent'] = {
+            text: `↩️ 撤銷了剛才對【${getPlayerName(last.targetUid)}】的淘汰判定`,
+            timestamp: Date.now(),
+            isWin: false
+          };
+
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
         };
 
@@ -899,11 +1284,16 @@
           const updates = { status: 'ended' };
           const history = roomData.value.eliminationHistory || [];
           const total = playerCount.value;
+          const survivorBonus = total + 1;
 
           Object.keys(roomData.value.players).forEach(uid => {
             if (!history.find(h => h.targetUid === uid)) {
+              const curTotal = roomData.value.players[uid]?.totalScore ?? 0;
+              const curRound = roomData.value.players[uid]?.roundScore || 0;
               updates[`players/${uid}/rank`] = 1;
-              updates[`players/${uid}/score`] = (roomData.value.players[uid].score || 0) + (total + 1);
+              updates[`players/${uid}/roundScore`] = curRound + survivorBonus;
+              updates[`players/${uid}/totalScore`] = curTotal + survivorBonus;
+              updates[`players/${uid}/score`] = curTotal + survivorBonus;
             }
           });
 
@@ -915,28 +1305,64 @@
           return Object.entries(roomData.value.players).map(([uid, p]) => ({
             uid,
             name: p.name,
-            score: p.score || 0,
+            totalScore: p.totalScore ?? p.score ?? 0,
+            roundScore: p.roundScore || 0,
             rank: p.rank || 1,
-            word: wordsData.value[uid]?.word || '無'
-          })).sort((a, b) => b.score - a.score);
+            word: wordsData.value[uid]?.word || (uid === currentUid.value ? myRevealedWord.value : '無')
+          })).sort((a, b) => b.totalScore - a.totalScore);
         });
 
         const resetRoom = async () => {
-          await db.ref(`rooms/${roomId.value}/words`).remove();
-          const pReset = {};
-          for (let u of Object.keys(roomData.value.players)) {
-            pReset[u] = {
-              name: roomData.value.players[u].name,
-              status: 'alive',
-              score: 0
-            };
+          try {
+            const uids = Object.keys(roomData.value?.players || {});
+            await Promise.all(uids.map(u => db.ref(`rooms/${roomId.value}/words/${u}`).remove()));
+
+            const nextRound = (roomData.value?.currentRound || 1) + 1;
+            const pReset = {};
+            for (let u of uids) {
+              const preservedTotal = roomData.value.players[u].totalScore ?? 0;
+              pReset[u] = {
+                name: roomData.value.players[u].name,
+                isHost: u === roomData.value.hostId,
+                status: 'alive',
+                totalScore: preservedTotal,
+                roundScore: 0,
+                score: preservedTotal,
+                rank: null,
+                assignedTarget: null
+              };
+            }
+
+            myRevealedWord.value = '';
+
+            await db.ref(`rooms/${roomId.value}/public`).update({
+              status: 'waiting',
+              currentRound: nextRound,
+              wordStatus: null,
+              eliminationHistory: null,
+              latestEvent: null,
+              pendingGuess: null,
+              players: pReset
+            });
+          } catch (err) {
+            alert('重開新局失敗：' + err.message);
           }
-          await db.ref(`rooms/${roomId.value}/public`).update({
-            status: 'waiting',
-            wordStatus: {},
-            eliminationHistory: [],
-            players: pReset
-          });
+        };
+
+        const resetAllScores = async () => {
+          if (!confirm('確定要將所有玩家的「累積總得分」全部歸零重計嗎？（這將重置回第 1 局）')) return;
+          try {
+            const updates = { currentRound: 1 };
+            Object.keys(roomData.value.players).forEach(u => {
+              updates[`players/${u}/totalScore`] = 0;
+              updates[`players/${u}/roundScore`] = 0;
+              updates[`players/${u}/score`] = 0;
+            });
+            await db.ref(`rooms/${roomId.value}/public`).update(updates);
+            alert('所有玩家累積總得分已成功歸零！');
+          } catch (e) {
+            alert('歸零失敗：' + e.message);
+          }
         };
 
         const getPlayerName = (uid) => roomData.value?.players?.[uid]?.name || '未知';
@@ -949,12 +1375,13 @@
           showTransferModal, newHostUidSelected, eliminatingTargetUid, lureHelper1, lureHelper2,
           lastElimination, localSelectedTarget, availableTargetsToPick, pairedCount,
           isAllPairingComplete, hasDeadlock, circleNodes, circleLinks,
-          readyPlayerCount, mySecretWordStatus,
+          readyPlayerCount, mySecretWordStatus, playingTab, liveScoreList, amIEliminated, myRevealedWord,
           createRoom, joinRoom, startInitialPhase, switchToRandomAssignment, confirmMyTarget,
           unlockMyTarget, resetAllPicks, startWritingPhaseFromPicking, submitWord, toggleVeto,
           getVetoCount, isWordVetoed, hasIVetoed, startGamePlay, openEliminateModal,
           confirmElimination, undoLastElimination, transferHost, endGameAndScore, resetRoom,
-          getPlayerName, leaveRoom
+          resetAllScores, getPlayerName, leaveRoom, pickRandomIdea, triggerBlindGuessChallenge,
+          judgeBlindGuess, dismissBlindGuess
         };
       }
     }).mount('#app');
