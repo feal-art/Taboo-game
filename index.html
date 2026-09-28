@@ -20,11 +20,11 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-4">
 
-    <!-- 頂部導航與房間資訊 -->
+    <!-- 頂部導航 -->
     <header class="flex justify-between items-center py-2 border-b border-slate-200 mb-3">
       <div>
         <h1 class="text-lg font-black text-indigo-600">🎯 團康禁說詞</h1>
-        <p v-if="roomId" class="text-xs text-slate-500">房號：<span class="font-mono font-bold text-slate-800">{{ roomId }}</span></p>
+        <p v-if="roomId" class="text-xs text-slate-500">數字房號：<span class="font-mono font-black text-base text-indigo-700 tracking-wider">{{ roomId }}</span></p>
       </div>
       <div v-if="currentUid" class="text-right">
         <span class="text-sm font-semibold text-slate-700">{{ nickname || '連線中' }}</span>
@@ -32,7 +32,7 @@
       </div>
     </header>
 
-    <!-- 階段 1：大廳與登入 -->
+    <!-- 階段 1：大廳與登入 (純數字房號) -->
     <div v-if="step === 'lobby'" class="flex-1 flex flex-col justify-center space-y-4">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <h2 class="text-base font-bold text-slate-700">加入遊戲</h2>
@@ -42,15 +42,15 @@
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="pt-2 border-t border-slate-100 space-y-3">
-          <button @click="createRoom" :disabled="!nicknameInput" 
-                  class="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium text-sm disabled:opacity-50 hover:bg-indigo-700 transition">
+          <button @click="createRoom" 
+                  class="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition">
             建立新房間（擔任房主）
           </button>
           <div class="flex items-center space-x-2">
-            <input v-model="roomInput" type="text" placeholder="輸入 4 位數房號" maxlength="6"
-                   class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <button @click="joinRoom" :disabled="!nicknameInput || !roomInput" 
-                    class="px-4 py-2 bg-slate-800 text-white rounded-lg font-medium text-sm disabled:opacity-50 hover:bg-slate-900 transition">
+            <input v-model="roomInput" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="4 位數字房號" maxlength="4"
+                   class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm tracking-widest font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <button @click="joinRoom" 
+                    class="px-5 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-900 transition">
               加入
             </button>
           </div>
@@ -68,43 +68,130 @@
             <span v-if="p.isHost" class="text-xs text-amber-600 font-bold">房主</span>
           </li>
         </ul>
-        <p v-if="playerCount < 3" class="text-xs text-rose-500 mt-2 font-medium">至少需 3 人才能開始出題。</p>
+        <p v-if="playerCount < 3" class="text-xs text-rose-500 mt-2 font-medium">至少需 3 人才能開始。</p>
       </div>
 
-      <!-- 房主設定面板 -->
+      <!-- 房主面板 -->
       <div v-if="isHost" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-        <h3 class="font-bold text-sm text-slate-700">房主控制面板</h3>
+        <h3 class="font-bold text-sm text-slate-700">房主設定</h3>
         <div>
           <label class="block text-xs text-slate-500 mb-1">禁說詞類別與限制條件</label>
           <input v-model="categoryRulesInput" type="text" placeholder="例：動作、三個字、感嘆詞" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
         </div>
         <div>
-          <label class="block text-xs text-slate-500 mb-1">出題模式</label>
-          <select v-model="assignModeInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-            <option value="random">🎲 系統隨機輪替循環（A出給B、B出給C...）</option>
-            <option value="manual">✍️ 自由手動指定（各自認領）</option>
+          <label class="block text-xs text-slate-500 mb-1">出題分配方式</label>
+          <select v-model="assignModeInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-medium">
+            <option value="random">🎲 系統隨機輪替（自動形成大圓環）</option>
+            <option value="manual">✍️ 自由各自認領（進入環狀選人）</option>
           </select>
         </div>
-        <button @click="startSettingPhase" :disabled="playerCount < 3" 
+        <button @click="startInitialPhase" :disabled="playerCount < 3" 
                 class="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-indigo-700 transition">
-          進入出題階段 ➔
+          {{ assignModeInput === 'manual' ? '進入自由選人環節 ➔' : '隨機配對並開始寫題 ➔' }}
         </button>
       </div>
       <div v-else class="bg-slate-50 p-4 rounded-xl text-center text-xs text-slate-500">
-        等待房主設定規則並啟動出題...
+        等待房主設定規則並啟動...
+      </div>
+    </div>
+
+    <!-- 階段 2.5：環狀視覺化選人環節 -->
+    <div v-else-if="roomData && roomData.status === 'picking'" class="flex-1 flex flex-col space-y-4">
+      <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-900">
+        <span class="font-bold block mb-0.5">🤝 環狀認領階段：</span>
+        <span>選擇想出題的對象並確認。箭頭代表「誰為誰出題」，所有人必須連成有效迴圈！</span>
       </div>
 
-      <!-- 移交房主權限 -->
-      <div v-if="isHost" class="pt-2">
-        <button @click="showTransferModal = !showTransferModal" class="text-xs text-slate-400 hover:text-slate-600 underline">
-          移交房主權限
-        </button>
-        <div v-if="showTransferModal" class="mt-2 flex gap-2">
-          <select v-model="newHostUidSelected" class="text-xs border rounded p-1 flex-1">
-            <option disabled value="">選擇新房主</option>
-            <option v-for="(p, u) in otherPlayers" :key="u" :value="u">{{ p.name }}</option>
+      <!-- 環狀 SVG 視覺化圖表 -->
+      <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
+        <div class="w-full flex justify-between items-center px-2 mb-1 text-xs">
+          <span class="font-bold text-slate-700">即時配對關係圖</span>
+          <span class="font-bold" :class="isAllPairingComplete ? 'text-emerald-600' : 'text-amber-600'">
+            {{ isAllPairingComplete ? '✅ 全員連線完成' : `鎖定：${pairedCount}/${playerCount}` }}
+          </span>
+        </div>
+
+        <svg viewBox="0 0 320 320" class="w-full max-w-[280px] aspect-square overflow-visible">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#6366f1" />
+            </marker>
+            <marker id="arrow-me" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#ec4899" />
+            </marker>
+          </defs>
+
+          <!-- 連線箭頭 -->
+          <g v-for="link in circleLinks" :key="link.from + '-' + link.to">
+            <path :d="link.d" fill="none" 
+                  :stroke="link.isMe ? '#ec4899' : '#6366f1'" 
+                  :stroke-width="link.isMe ? '3' : '2'" 
+                  :marker-end="link.isMe ? 'url(#arrow-me)' : 'url(#arrow)'"
+                  class="transition-all duration-300" />
+          </g>
+
+          <!-- 玩家圓形節點 -->
+          <g v-for="node in circleNodes" :key="node.uid" :transform="`translate(${node.x}, ${node.y})`" class="transition-transform duration-300">
+            <circle r="22" 
+                    :fill="node.isMe ? '#4f46e5' : (node.hasTarget ? '#e0e7ff' : '#f8fafc')" 
+                    :stroke="node.isMe ? '#ec4899' : (node.hasTarget ? '#6366f1' : '#cbd5e1')" 
+                    :stroke-width="node.isMe ? '3' : '2'" />
+            <text text-anchor="middle" dy="4" 
+                  :fill="node.isMe ? '#ffffff' : '#1e293b'" 
+                  font-size="11" font-weight="bold">
+              {{ node.shortName }}
+            </text>
+            <text text-anchor="middle" dy="34" fill="#64748b" font-size="10" font-weight="medium">
+              {{ node.name }}
+            </text>
+          </g>
+        </svg>
+
+        <div v-if="hasDeadlock" class="w-full mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 text-center font-medium">
+          ⚠️ 配對卡死（最後一人只剩自己可選）。請換人或重置！
+        </div>
+      </div>
+
+      <!-- 個人選人控制區 -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+        <div v-if="!myAssignedTargetUid">
+          <label class="block text-xs text-slate-500 mb-1">請選擇尚未被認領的對象：</label>
+          <select v-model="localSelectedTarget" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-medium mb-3">
+            <option value="">-- 請選擇一位對象 --</option>
+            <option v-for="(p, uid) in availableTargetsToPick" :key="uid" :value="uid">
+              {{ p.name }}
+            </option>
           </select>
-          <button @click="transferHost" class="text-xs bg-amber-600 text-white px-3 py-1 rounded font-bold">確認</button>
+          <button @click="confirmMyTarget" :disabled="!localSelectedTarget"
+                  class="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-indigo-700 transition">
+            🔒 鎖定確認此對象
+          </button>
+        </div>
+
+        <div v-else class="flex justify-between items-center p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div>
+            <span class="text-xs text-indigo-700 block">你的箭頭指向：</span>
+            <span class="text-base font-black text-indigo-900">{{ getPlayerName(myAssignedTargetUid) }}</span>
+          </div>
+          <button @click="unlockMyTarget" class="text-xs bg-white border border-indigo-300 text-indigo-700 px-3 py-1.5 rounded font-bold hover:bg-indigo-100">
+            更換對象
+          </button>
+        </div>
+      </div>
+
+      <!-- 房主控制按鈕 -->
+      <div v-if="isHost" class="space-y-2 pt-1">
+        <button @click="startWritingPhaseFromPicking" :disabled="!isAllPairingComplete"
+                class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm shadow disabled:opacity-50 hover:bg-emerald-700 transition">
+          全體連線完成，進入出題 ➔
+        </button>
+        <div class="flex gap-2">
+          <button @click="resetAllPicks" class="flex-1 py-1.5 bg-slate-200 text-slate-700 rounded text-xs font-bold hover:bg-slate-300">
+            🔄 重置全員
+          </button>
+          <button @click="switchToRandomAssignment" class="flex-1 py-1.5 bg-amber-500 text-white rounded text-xs font-bold hover:bg-amber-600">
+            🎲 改為隨機環狀
+          </button>
         </div>
       </div>
     </div>
@@ -112,54 +199,37 @@
     <!-- 階段 3：出題與審核 (Veto) 階段 -->
     <div v-else-if="roomData && roomData.status === 'setting'" class="flex-1 flex flex-col space-y-4">
       <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl text-xs text-indigo-900">
-        <span class="font-bold block mb-0.5">📋 本局限制條件：</span>
+        <span class="font-bold block mb-0.5">📋 出題限制條件：</span>
         <span>{{ roomData.categoryRules || '無特殊限制' }}</span>
       </div>
 
-      <!-- 房主中途切換模式與控制 -->
-      <div v-if="isHost" class="bg-amber-50 border border-amber-200 p-3 rounded-xl flex justify-between items-center text-xs">
-        <span class="text-amber-900 font-bold">出題模式：</span>
-        <button @click="toggleAssignMode" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded font-bold transition">
-          切換為：{{ roomData.assignMode === 'random' ? '手動指定' : '隨機輪替' }}
-        </button>
-      </div>
-
-      <!-- 出題區塊 -->
+      <!-- 個人填寫題目區 -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
-        <h3 class="font-bold text-sm text-slate-700">出題面板</h3>
-
-        <!-- 手動模式時的認領選單 -->
-        <div v-if="roomData.assignMode === 'manual'">
-          <label class="block text-xs text-slate-500 mb-1">選擇你要出題的對象</label>
-          <select v-model="targetUidSelected" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
-            <option disabled value="">請選擇一位玩家</option>
-            <option v-for="(p, uid) in otherPlayers" :key="uid" :value="uid" :disabled="isTargetClaimedByOther(uid)">
-              {{ p.name }} {{ getTargetClaimStatus(uid) }}
-            </option>
-          </select>
-        </div>
-        <div v-else class="text-xs text-slate-600">
-          系統指派你的出題對象：<span class="font-bold text-indigo-600 text-sm">{{ getPlayerName(myAssignedTargetUid) }}</span>
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-700">填寫禁說詞</h3>
+          <span class="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold">
+            對象：{{ getPlayerName(myAssignedTargetUid) }}
+          </span>
         </div>
 
         <div>
           <label class="block text-xs text-slate-500 mb-1">禁說詞內容</label>
-          <input v-model="wordInput" type="text" placeholder="例如：然後、抓頭、讚" maxlength="15" 
+          <input v-model="wordInput" type="text" placeholder="例如：然後、抓頭、好酷" maxlength="15" 
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
         </div>
         <div>
           <label class="block text-xs text-slate-500 mb-1">類別標記（選填）</label>
-          <input v-model="wordCategoryInput" type="text" placeholder="例如：口頭禪 / 動作" maxlength="10" 
+          <input v-model="wordCategoryInput" type="text" placeholder="例如：口頭禪 / 肢體動作" maxlength="10" 
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
         </div>
 
-        <button @click="submitWord" :disabled="!wordInput || (!targetUidSelected && !myAssignedTargetUid)" 
-                class="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-indigo-700 transition">
+        <button @click="submitWord" 
+                class="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow hover:bg-indigo-700 active:scale-[0.99] transition">
           送出題目
         </button>
       </div>
 
-      <!-- 題目審核與否定清單 (看不到為自己出的題) -->
+      <!-- 題目審核清單 (隱藏本人被出的題) -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">題目審核 (滿 1/3 反對即退回)</h3>
@@ -167,14 +237,14 @@
         </div>
 
         <div v-if="Object.keys(reviewableWords).length === 0" class="text-center py-4 text-xs text-slate-400">
-          尚無人送出題目...
+          尚未有人送出題目...
         </div>
 
         <div v-for="(item, tUid) in reviewableWords" :key="tUid" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-slate-800 text-sm">受測者：{{ getPlayerName(tUid) }}</span>
             <span v-if="isWordVetoed(item)" class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">已達門檻：退回重出</span>
-            <span v-else class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">通過</span>
+            <span v-else class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">認可通過</span>
           </div>
 
           <div class="text-slate-800 text-sm">
@@ -183,11 +253,11 @@
           </div>
 
           <div v-if="item.historyWord && item.historyWord !== item.word" class="text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200">
-            ⚠️ 歷史前題：{{ item.historyWord }}（已保留防忘）
+            ⚠️ 前次被否決的詞：{{ item.historyWord }}
           </div>
 
           <div class="flex justify-between items-center pt-1 text-slate-500">
-            <span>反對進度：{{ getVetoCount(item) }} / {{ vetoThreshold }} 票</span>
+            <span>反對數：{{ getVetoCount(item) }} / {{ vetoThreshold }} 票</span>
             <button @click="toggleVeto(tUid, item)" 
                     class="px-2.5 py-1 rounded font-bold transition" 
                     :class="hasIVetoed(item) ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700'">
@@ -197,13 +267,13 @@
         </div>
       </div>
 
-      <!-- 房主啟動正式遊戲 -->
+      <!-- 房主啟動遊戲 -->
       <div v-if="isHost" class="pt-2">
         <button @click="startGamePlay" :disabled="!canStartGame" 
                 class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm shadow-md disabled:opacity-50 hover:bg-emerald-700 transition">
           全員題目通過，開始遊戲！
         </button>
-        <p v-if="!canStartGame" class="text-center text-xs text-slate-400 mt-1">需每人皆有題目且未被退回</p>
+        <p v-if="!canStartGame" class="text-center text-xs text-slate-400 mt-1">需每人皆有題目且未達反對門檻</p>
       </div>
     </div>
 
@@ -217,7 +287,7 @@
         <span class="text-xs bg-indigo-700 px-2 py-1 rounded-md">存活：{{ aliveCount }} 人</span>
       </div>
 
-      <!-- 撤銷（Undo）防呆按鈕列 -->
+      <!-- 撤銷（Undo）按鈕 -->
       <div v-if="isHost && lastElimination" class="bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
         <span class="text-rose-900">剛淘汰：<strong>{{ getPlayerName(lastElimination.targetUid) }}</strong></span>
         <button @click="undoLastElimination" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded font-bold transition">
@@ -225,7 +295,7 @@
         </button>
       </div>
 
-      <!-- 看板卡片列表 (除自己以外的所有人) -->
+      <!-- 看板清單 (除自己以外所有人) -->
       <div class="space-y-3">
         <div v-for="(p, uid) in otherPlayers" :key="uid" 
              class="bg-white p-3.5 rounded-xl shadow-sm border border-slate-200"
@@ -250,7 +320,6 @@
               </div>
             </div>
 
-            <!-- 房主控制淘汰與加分面板 -->
             <div v-if="isHost && p.status !== 'eliminated'" class="text-right">
               <button @click="openEliminateModal(uid)" class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 shadow-sm">
                 抓到！
@@ -260,13 +329,13 @@
         </div>
       </div>
 
-      <!-- 房主結算與換人控制 -->
+      <!-- 房主結算與中途換人 -->
       <div v-if="isHost" class="pt-2 space-y-2 mt-auto">
         <button @click="endGameAndScore" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition">
-          結束遊戲並顯示總結算
+          結束遊戲並顯示結算榜
         </button>
         <button @click="showTransferModal = !showTransferModal" class="w-full text-center text-xs text-slate-400 hover:text-slate-600 underline">
-          中途更換計分員/房主
+          中途移交計分員/房主
         </button>
         <div v-if="showTransferModal" class="flex gap-2 p-2 bg-slate-200 rounded-lg">
           <select v-model="newHostUidSelected" class="text-xs border rounded p-1 flex-1 bg-white">
@@ -278,11 +347,11 @@
       </div>
     </div>
 
-    <!-- 階段 5：結算積分看板 -->
+    <!-- 階段 5：總結算畫面 -->
     <div v-else-if="roomData && roomData.status === 'ended'" class="flex-1 flex flex-col space-y-4">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center space-y-3">
         <h2 class="text-xl font-black text-slate-800">🏆 本局積分排行榜</h2>
-        <p class="text-xs text-slate-500">計分：名次分（1, 2, ...）+ 引誘加分（每位 +2 分）</p>
+        <p class="text-xs text-slate-500">名次分（1, 2, ...）+ 引誘加分（每位 +2 分）</p>
 
         <div class="divide-y divide-slate-100 text-sm pt-2">
           <div v-for="res in sortedResults" :key="res.uid" class="py-2.5 flex justify-between items-center">
@@ -303,7 +372,7 @@
       </div>
     </div>
 
-    <!-- 淘汰彈窗 (挑選 0~2 位引誘者) -->
+    <!-- 淘汰彈窗 (最多選 2 位助攻者) -->
     <div v-if="eliminatingTargetUid" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-4 shadow-xl">
         <h3 class="font-bold text-slate-800 text-sm">
@@ -345,9 +414,6 @@
   </div>
 
   <script>
-    // ==========================================
-    // 你的 Firebase 專案配置（已整合你的專屬連線金鑰）
-    // ==========================================
     const firebaseConfig = {
       apiKey: "AIzaSyCxfV6Udb2k91NmNfifmifdRMZ3WTr6ygY",
       authDomain: "taboo-game-260929.firebaseapp.com",
@@ -374,10 +440,11 @@
         const currentUid = ref('');
         const roomData = ref(null);
         const wordsData = ref({});
+        const activeWordListeners = {};
 
         const categoryRulesInput = ref('名詞、動作、感嘆詞');
         const assignModeInput = ref('random');
-        const targetUidSelected = ref('');
+        const localSelectedTarget = ref('');
         const wordInput = ref('');
         const wordCategoryInput = ref('');
 
@@ -399,16 +466,33 @@
 
           db.ref(`rooms/${rId}/public`).on('value', (snap) => {
             roomData.value = snap.val();
-          });
-
-          db.ref(`rooms/${rId}/words`).on('value', (snap) => {
-            wordsData.value = snap.val() || {};
+            syncWordListeners(rId);
           });
         };
 
+        const syncWordListeners = (rId) => {
+          if (!roomData.value?.players) return;
+          Object.keys(roomData.value.players).forEach((pUid) => {
+            if (pUid !== currentUid.value && !activeWordListeners[pUid]) {
+              activeWordListeners[pUid] = true;
+              db.ref(`rooms/${rId}/words/${pUid}`).on('value', (snap) => {
+                if (snap.exists()) {
+                  wordsData.value[pUid] = snap.val();
+                } else {
+                  delete wordsData.value[pUid];
+                }
+              });
+            }
+          });
+        };
+
+        // 建立 4 位純數字房間
         const createRoom = async () => {
-          nickname.value = nicknameInput.value;
-          const newRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+          if (!nicknameInput.value.trim()) return alert('請先輸入暱稱！');
+          nickname.value = nicknameInput.value.trim();
+          
+          // 產生 1000 ~ 9999 純數字代碼
+          const newRoomId = Math.floor(1000 + Math.random() * 9000).toString();
           const initialData = {
             status: 'waiting',
             hostId: currentUid.value,
@@ -429,13 +513,15 @@
         };
 
         const joinRoom = async () => {
-          nickname.value = nicknameInput.value;
-          const rId = roomInput.value.toUpperCase();
-          const snap = await db.ref(`rooms/${rId}/public`).once('value');
-          if (!snap.exists()) {
-            alert('找不到該房間！');
-            return;
+          if (!nicknameInput.value.trim()) return alert('請先輸入暱稱！');
+          if (!roomInput.value.trim() || roomInput.value.trim().length !== 4) {
+            return alert('請輸入 4 位數純數字房號！');
           }
+          nickname.value = nicknameInput.value.trim();
+          const rId = roomInput.value.trim();
+          const snap = await db.ref(`rooms/${rId}/public`).once('value');
+          if (!snap.exists()) return alert('找不到該房間！請確認 4 位數字是否正確。');
+          
           await db.ref(`rooms/${rId}/public/players/${currentUid.value}`).set({
             name: nickname.value,
             isHost: false,
@@ -458,28 +544,117 @@
         const aliveCount = computed(() => Object.values(roomData.value?.players || {}).filter(p => p.status === 'alive').length);
         const vetoThreshold = computed(() => Math.ceil((playerCount.value - 1) / 3));
 
-        const reviewableWords = computed(() => {
-          const res = {};
-          for (let [tUid, w] of Object.entries(wordsData.value)) {
-            if (tUid !== currentUid.value) res[tUid] = w;
-          }
-          return res;
+        // 環狀幾何節點計算 (SVG 320x320, 圓心 160, 160, 半徑 105)
+        const circleNodes = computed(() => {
+          if (!roomData.value?.players) return [];
+          const entries = Object.entries(roomData.value.players);
+          const total = entries.length;
+          const cx = 160, cy = 160, r = 105;
+
+          return entries.map(([uid, p], idx) => {
+            const angle = (2 * Math.PI * idx) / total - Math.PI / 2;
+            return {
+              uid,
+              name: p.name,
+              shortName: (p.name || '').slice(0, 2),
+              isMe: uid === currentUid.value,
+              hasTarget: !!p.assignedTarget,
+              x: Math.round(cx + r * Math.cos(angle)),
+              y: Math.round(cy + r * Math.sin(angle))
+            };
+          });
         });
 
-        const isTargetClaimedByOther = (uid) => {
-          const w = wordsData.value[uid];
-          return w && w.authorUid !== currentUid.value;
+        // 環狀連線箭頭計算 (二次貝茲曲線向中心微彎)
+        const circleLinks = computed(() => {
+          if (!roomData.value?.players) return [];
+          const nodes = circleNodes.value;
+          const nodeMap = {};
+          nodes.forEach(n => { nodeMap[n.uid] = n; });
+
+          const links = [];
+          nodes.forEach(n => {
+            const targetUid = roomData.value.players[n.uid]?.assignedTarget;
+            if (targetUid && nodeMap[targetUid]) {
+              const target = nodeMap[targetUid];
+              const midX = (n.x + target.x) / 2;
+              const midY = (n.y + target.y) / 2;
+              // 往圓心 (160, 160) 微拉 25% 產生優美弧線
+              const ctrlX = Math.round(midX + (160 - midX) * 0.25);
+              const ctrlY = Math.round(midY + (160 - midY) * 0.25);
+
+              links.push({
+                from: n.uid,
+                to: targetUid,
+                isMe: n.uid === currentUid.value,
+                d: `M ${n.x} ${n.y} Q ${ctrlX} ${ctrlY} ${target.x} ${target.y}`
+              });
+            }
+          });
+          return links;
+        });
+
+        const availableTargetsToPick = computed(() => {
+          if (!roomData.value?.players) return {};
+          const claimedTargets = Object.values(roomData.value.players)
+            .map(p => p.assignedTarget)
+            .filter(Boolean);
+          const available = {};
+          for (let [uid, p] of Object.entries(roomData.value.players)) {
+            if (uid !== currentUid.value && !claimedTargets.includes(uid)) {
+              available[uid] = p;
+            }
+          }
+          return available;
+        });
+
+        const pairedCount = computed(() => {
+          if (!roomData.value?.players) return 0;
+          return Object.values(roomData.value.players).filter(p => !!p.assignedTarget).length;
+        });
+
+        const isAllPairingComplete = computed(() => {
+          if (!roomData.value?.players) return false;
+          const uids = Object.keys(roomData.value.players);
+          if (uids.length < 3) return false;
+          const pickedTargets = uids.map(u => roomData.value.players[u].assignedTarget);
+          const allPicked = pickedTargets.every(t => !!t);
+          const uniqueTargets = new Set(pickedTargets).size === uids.length;
+          const noSelfPick = uids.every(u => roomData.value.players[u].assignedTarget !== u);
+          return allPicked && uniqueTargets && noSelfPick;
+        });
+
+        const hasDeadlock = computed(() => {
+          if (!roomData.value?.players || roomData.value.status !== 'picking') return false;
+          const unassignedPlayers = Object.entries(roomData.value.players).filter(([u, p]) => !p.assignedTarget);
+          const claimedTargets = Object.values(roomData.value.players).map(p => p.assignedTarget).filter(Boolean);
+          if (unassignedPlayers.length === 1) {
+            const lastUid = unassignedPlayers[0][0];
+            return !claimedTargets.includes(lastUid);
+          }
+          return false;
+        });
+
+        const confirmMyTarget = async () => {
+          if (!localSelectedTarget.value) return;
+          await db.ref(`rooms/${roomId.value}/public/players/${currentUid.value}/assignedTarget`).set(localSelectedTarget.value);
+          localSelectedTarget.value = '';
         };
 
-        const getTargetClaimStatus = (uid) => {
-          const w = wordsData.value[uid];
-          if (!w) return '';
-          return w.authorUid === currentUid.value ? '（你出的題）' : '（已被認領）';
+        const unlockMyTarget = async () => {
+          await db.ref(`rooms/${roomId.value}/public/players/${currentUid.value}/assignedTarget`).remove();
         };
 
-        const startSettingPhase = async () => {
+        const resetAllPicks = async () => {
+          const updates = {};
+          Object.keys(roomData.value.players).forEach(u => {
+            updates[`players/${u}/assignedTarget`] = null;
+          });
+          await db.ref(`rooms/${roomId.value}/public`).update(updates);
+        };
+
+        const startInitialPhase = async () => {
           const updates = {
-            status: 'setting',
             categoryRules: categoryRulesInput.value,
             assignMode: assignModeInput.value
           };
@@ -489,37 +664,60 @@
             for (let i = 0; i < shuffled.length; i++) {
               updates[`players/${shuffled[i]}/assignedTarget`] = shuffled[(i + 1) % shuffled.length];
             }
+            updates.status = 'setting';
+          } else {
+            Object.keys(roomData.value.players).forEach(u => {
+              updates[`players/${u}/assignedTarget`] = null;
+            });
+            updates.status = 'picking';
           }
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
         };
 
-        const toggleAssignMode = async () => {
-          const nextMode = roomData.value.assignMode === 'random' ? 'manual' : 'random';
-          const updates = { assignMode: nextMode };
-          if (nextMode === 'random') {
-            const uids = Object.keys(roomData.value.players);
-            const shuffled = [...uids].sort(() => Math.random() - 0.5);
-            for (let i = 0; i < shuffled.length; i++) {
-              updates[`players/${shuffled[i]}/assignedTarget`] = shuffled[(i + 1) % shuffled.length];
-            }
+        const switchToRandomAssignment = async () => {
+          const uids = Object.keys(roomData.value.players);
+          const shuffled = [...uids].sort(() => Math.random() - 0.5);
+          const updates = { assignMode: 'random', status: 'setting' };
+          for (let i = 0; i < shuffled.length; i++) {
+            updates[`players/${shuffled[i]}/assignedTarget`] = shuffled[(i + 1) % shuffled.length];
           }
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
         };
+
+        const startWritingPhaseFromPicking = async () => {
+          if (!isAllPairingComplete.value) return alert('尚未全員完成有效配對！');
+          await db.ref(`rooms/${roomId.value}/public`).update({ status: 'setting' });
+        };
+
+        const reviewableWords = computed(() => {
+          const res = {};
+          for (let [tUid, w] of Object.entries(wordsData.value)) {
+            if (tUid !== currentUid.value) res[tUid] = w;
+          }
+          return res;
+        });
 
         const submitWord = async () => {
-          const tUid = roomData.value.assignMode === 'manual' ? targetUidSelected.value : myAssignedTargetUid.value;
-          const prev = wordsData.value[tUid];
-          const payload = {
-            authorUid: currentUid.value,
-            word: wordInput.value,
-            category: wordCategoryInput.value,
-            vetoVotes: {},
-            historyWord: prev ? prev.word : ''
-          };
-          await db.ref(`rooms/${roomId.value}/words/${tUid}`).set(payload);
-          wordInput.value = '';
-          wordCategoryInput.value = '';
-          alert('題目已送出，等待其他玩家審核！');
+          const tUid = myAssignedTargetUid.value;
+          if (!tUid) return alert('系統尚未指派你的出題對象！');
+          if (!wordInput.value || !wordInput.value.trim()) return alert('請在「禁說詞內容」輸入文字！');
+
+          try {
+            const prev = wordsData.value[tUid];
+            const payload = {
+              authorUid: currentUid.value,
+              word: wordInput.value.trim(),
+              category: wordCategoryInput.value.trim(),
+              vetoVotes: {},
+              historyWord: prev ? prev.word : ''
+            };
+            await db.ref(`rooms/${roomId.value}/words/${tUid}`).set(payload);
+            wordInput.value = '';
+            wordCategoryInput.value = '';
+            alert('題目已送出，請查看下方審核進度！');
+          } catch (e) {
+            alert('送出失敗：' + e.message);
+          }
         };
 
         const getVetoCount = (item) => Object.keys(item.vetoVotes || {}).length;
@@ -535,6 +733,7 @@
 
         const canStartGame = computed(() => {
           const uids = Object.keys(roomData.value?.players || {});
+          if (uids.length < 3) return false;
           for (let u of uids) {
             const w = wordsData.value[u];
             if (!w || !w.word || isWordVetoed(w)) return false;
@@ -657,14 +856,16 @@
         return {
           step, nicknameInput, nickname, roomInput, roomId, currentUid,
           roomData, wordsData, isHost, playerCount, otherPlayers, aliveCount,
-          categoryRulesInput, assignModeInput, targetUidSelected, wordInput, wordCategoryInput,
+          categoryRulesInput, assignModeInput, wordInput, wordCategoryInput,
           myAssignedTargetUid, vetoThreshold, reviewableWords, canStartGame, sortedResults,
           showTransferModal, newHostUidSelected, eliminatingTargetUid, lureHelper1, lureHelper2,
-          lastElimination,
-          createRoom, joinRoom, startSettingPhase, toggleAssignMode, submitWord, toggleVeto,
+          lastElimination, localSelectedTarget, availableTargetsToPick, pairedCount,
+          isAllPairingComplete, hasDeadlock, circleNodes, circleLinks,
+          createRoom, joinRoom, startInitialPhase, switchToRandomAssignment, confirmMyTarget,
+          unlockMyTarget, resetAllPicks, startWritingPhaseFromPicking, submitWord, toggleVeto,
           getVetoCount, isWordVetoed, hasIVetoed, startGamePlay, openEliminateModal,
           confirmElimination, undoLastElimination, transferHost, endGameAndScore, resetRoom,
-          getPlayerName, isTargetClaimedByOther, getTargetClaimStatus
+          getPlayerName
         };
       }
     }).mount('#app');
