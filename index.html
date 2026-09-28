@@ -26,9 +26,15 @@
         <h1 class="text-lg font-black text-indigo-600">🎯 團康禁說詞</h1>
         <p v-if="roomId" class="text-xs text-slate-500">數字房號：<span class="font-mono font-black text-base text-indigo-700 tracking-wider">{{ roomId }}</span></p>
       </div>
-      <div v-if="currentUid" class="text-right">
-        <span class="text-sm font-semibold text-slate-700">{{ nickname || '連線中' }}</span>
-        <span v-if="isHost" class="ml-1 text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold border border-amber-300">房主</span>
+      <div v-if="currentUid" class="text-right flex items-center gap-2">
+        <div>
+          <span class="text-sm font-semibold text-slate-700 block leading-tight">{{ nickname || '連線中' }}</span>
+          <span v-if="isHost" class="text-[10px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-bold border border-amber-300">房主</span>
+        </div>
+        <button v-if="roomId" @click="leaveRoom" title="離開房間" 
+                class="text-xs bg-slate-200 hover:bg-rose-100 hover:text-rose-600 text-slate-600 px-2 py-1 rounded transition font-medium">
+          離開
+        </button>
       </div>
     </header>
 
@@ -102,7 +108,7 @@
         <span>選擇想出題的對象並確認。箭頭代表「誰為誰出題」，所有人必須連成有效迴圈！</span>
       </div>
 
-      <!-- 環狀 SVG 視覺化圖表 -->
+      <!-- 環狀 SVG 圖表 -->
       <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
         <div class="w-full flex justify-between items-center px-2 mb-1 text-xs">
           <span class="font-bold text-slate-700">即時配對關係圖</span>
@@ -130,7 +136,7 @@
                   class="transition-all duration-300" />
           </g>
 
-          <!-- 玩家圓形節點 -->
+          <!-- 節點 -->
           <g v-for="node in circleNodes" :key="node.uid" :transform="`translate(${node.x}, ${node.y})`" class="transition-transform duration-300">
             <circle r="22" 
                     :fill="node.isMe ? '#4f46e5' : (node.hasTarget ? '#e0e7ff' : '#f8fafc')" 
@@ -152,7 +158,7 @@
         </div>
       </div>
 
-      <!-- 個人選人控制區 -->
+      <!-- 選人操作區 -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div v-if="!myAssignedTargetUid">
           <label class="block text-xs text-slate-500 mb-1">請選擇尚未被認領的對象：</label>
@@ -203,7 +209,6 @@
           <span class="font-bold block mb-0.5">📋 出題限制條件：</span>
           <span>{{ roomData.categoryRules || '無特殊限制' }}</span>
         </div>
-        <!-- 消除資訊黑洞：本人題目的接收進度 -->
         <div class="text-right">
           <span class="text-[10px] text-indigo-500 block font-medium">你的題目狀態：</span>
           <span class="font-bold text-xs" :class="mySecretWordStatus.color">{{ mySecretWordStatus.text }}</span>
@@ -236,7 +241,7 @@
         </button>
       </div>
 
-      <!-- 題目審核清單 (隱藏本人被出的題) -->
+      <!-- 題目審核清單 (隱藏本人被出的題，其他人皆看得到前次被否決詞) -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">題目審核 (滿 1/3 反對即退回)</h3>
@@ -259,15 +264,9 @@
             <span v-if="item.category" class="text-xs text-slate-500 ml-1">[{{ item.category }}]</span>
           </div>
 
-          <!-- 全歷史被否決詞彙完整展開列表 -->
-          <div v-if="item.historyWords && item.historyWords.length > 0" class="p-2 bg-amber-50/80 rounded-lg border border-amber-200 space-y-1">
-            <span class="font-bold text-amber-800 text-[11px] block">⚠️ 歷史被否決紀錄（{{ item.historyWords.length }} 個）：</span>
-            <div class="flex flex-wrap gap-1">
-              <span v-for="(hw, idx) in item.historyWords" :key="idx" 
-                    class="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-medium line-through">
-                {{ hw }}
-              </span>
-            </div>
+          <!-- 所有人（除受測者外）皆看得到上一個被否決的詞彙 -->
+          <div v-if="item.lastVetoedWord" class="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-[11px] font-medium">
+            ⚠️ 上一次被否決的詞：<span class="line-through font-bold text-rose-700">{{ item.lastVetoedWord }}</span>
           </div>
 
           <div class="flex justify-between items-center pt-1 text-slate-500">
@@ -388,7 +387,7 @@
       </div>
     </div>
 
-    <!-- 淘汰彈窗 (最多選 2 位助攻者) -->
+    <!-- 淘汰彈窗 -->
     <div v-if="eliminatingTargetUid" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-4 shadow-xl">
         <h3 class="font-bold text-slate-800 text-sm">
@@ -471,14 +470,39 @@
         const lureHelper1 = ref('');
         const lureHelper2 = ref('');
 
-        onMounted(async () => {
-          const userCred = await auth.signInAnonymously();
-          currentUid.value = userCred.user.uid;
+        // 初始化與斷線/重整自動恢復
+        onMounted(() => {
+          auth.onAuthStateChanged(async (user) => {
+            if (user) {
+              currentUid.value = user.uid;
+            } else {
+              const cred = await auth.signInAnonymously();
+              currentUid.value = cred.user.uid;
+            }
+
+            // 檢查 localStorage 是否已有暫存的房間資料
+            const cachedRoomId = localStorage.getItem('taboo_roomId');
+            const cachedNickname = localStorage.getItem('taboo_nickname');
+
+            if (cachedRoomId && cachedNickname) {
+              const snap = await db.ref(`rooms/${cachedRoomId}/public/players/${currentUid.value}`).once('value');
+              if (snap.exists()) {
+                nickname.value = cachedNickname;
+                bindRoom(cachedRoomId);
+              } else {
+                localStorage.removeItem('taboo_roomId');
+              }
+            }
+          });
         });
 
         const bindRoom = (rId) => {
           roomId.value = rId;
           step.value = 'inRoom';
+
+          // 儲存至 localStorage 供重整恢復
+          localStorage.setItem('taboo_roomId', rId);
+          localStorage.setItem('taboo_nickname', nickname.value);
 
           db.ref(`rooms/${rId}/public`).on('value', (snap) => {
             roomData.value = snap.val();
@@ -486,20 +510,29 @@
           });
         };
 
+        // 核心修正：強制覆寫響應式物件，確保所有評審畫面即刻更新
         const syncWordListeners = (rId) => {
           if (!roomData.value?.players) return;
           Object.keys(roomData.value.players).forEach((pUid) => {
             if (pUid !== currentUid.value && !activeWordListeners[pUid]) {
               activeWordListeners[pUid] = true;
               db.ref(`rooms/${rId}/words/${pUid}`).on('value', (snap) => {
+                const nextWords = { ...wordsData.value };
                 if (snap.exists()) {
-                  wordsData.value[pUid] = snap.val();
+                  nextWords[pUid] = snap.val();
                 } else {
-                  delete wordsData.value[pUid];
+                  delete nextWords[pUid];
                 }
+                wordsData.value = nextWords;
               });
             }
           });
+        };
+
+        const leaveRoom = () => {
+          if (!confirm('確定要離開當前房間嗎？')) return;
+          localStorage.removeItem('taboo_roomId');
+          window.location.reload();
         };
 
         const createRoom = async () => {
@@ -558,7 +591,6 @@
         const aliveCount = computed(() => Object.values(roomData.value?.players || {}).filter(p => p.status === 'alive').length);
         const vetoThreshold = computed(() => Math.ceil((playerCount.value - 1) / 3));
 
-        // 查詢自己題目的接收狀態（不透漏題目文字）
         const mySecretWordStatus = computed(() => {
           const st = roomData.value?.wordStatus?.[currentUid.value];
           if (!st || !st.hasWord) return { text: '對手構思中...', color: 'text-slate-400' };
@@ -566,7 +598,6 @@
           return { text: '已就緒 (認可通過)', color: 'text-emerald-600' };
         });
 
-        // 環狀節點計算 (SVG 320x320)
         const circleNodes = computed(() => {
           if (!roomData.value?.players) return [];
           const entries = Object.entries(roomData.value.players);
@@ -718,7 +749,7 @@
           return res;
         });
 
-        // 提交題目：完整保留全部歷史被否決詞彙
+        // 提交題目：只保留「上一次被否決的詞」
         const submitWord = async () => {
           const tUid = myAssignedTargetUid.value;
           if (!tUid) return alert('系統尚未指派你的出題對象！');
@@ -727,16 +758,11 @@
           try {
             const snap = await db.ref(`rooms/${roomId.value}/words/${tUid}`).once('value');
             const prev = snap.val();
-            let history = [];
-            if (prev) {
-              if (Array.isArray(prev.historyWords)) {
-                history = [...prev.historyWords];
-              } else if (prev.historyWord) {
-                history = [prev.historyWord];
-              }
-              if (prev.word && !history.includes(prev.word)) {
-                history.push(prev.word);
-              }
+
+            // 若先前已有送出過題目，記錄為 lastVetoedWord
+            let lastVetoed = '';
+            if (prev && prev.word) {
+              lastVetoed = prev.word;
             }
 
             const payload = {
@@ -744,12 +770,12 @@
               word: wordInput.value.trim(),
               category: wordCategoryInput.value.trim(),
               vetoVotes: {},
-              historyWords: history
+              lastVetoedWord: lastVetoed
             };
 
             await db.ref(`rooms/${roomId.value}/words/${tUid}`).set(payload);
             
-            // 同步寫入公開就緒狀態（任何人皆可讀取，不含敏感詞）
+            // 同步寫入公開就緒狀態
             await db.ref(`rooms/${roomId.value}/public/wordStatus/${tUid}`).set({
               hasWord: true,
               isVetoed: false
@@ -773,14 +799,12 @@
           if (voted) await ref.remove();
           else await ref.set(true);
 
-          // 更新公開節點的否決布林狀態
           const votesSnap = await db.ref(`rooms/${roomId.value}/words/${targetUid}/vetoVotes`).once('value');
           const votes = votesSnap.val() || {};
           const isVetoed = Object.keys(votes).length >= vetoThreshold.value;
           await db.ref(`rooms/${roomId.value}/public/wordStatus/${targetUid}/isVetoed`).set(isVetoed);
         };
 
-        // 核心修正：利用公開 wordStatus 與本地資料交叉比對，不再被防作弊規則卡死
         const readyPlayerCount = computed(() => {
           if (!roomData.value?.players) return 0;
           const uids = Object.keys(roomData.value.players);
@@ -930,7 +954,7 @@
           unlockMyTarget, resetAllPicks, startWritingPhaseFromPicking, submitWord, toggleVeto,
           getVetoCount, isWordVetoed, hasIVetoed, startGamePlay, openEliminateModal,
           confirmElimination, undoLastElimination, transferHost, endGameAndScore, resetRoom,
-          getPlayerName
+          getPlayerName, leaveRoom
         };
       }
     }).mount('#app');
