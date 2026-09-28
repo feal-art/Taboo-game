@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>團康禁說詞記事本</title>
+  <title>陷阱發言中｜派對心機禁語大逃殺</title>
 
   <!-- PWA 標籤 -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="陷阱發言中">
   <meta name="theme-color" content="#4f46e5">
 
   <!-- Tailwind CSS & Vue 3 & Firebase Compat SDK -->
@@ -24,8 +25,9 @@
     <header class="flex justify-between items-center py-2 border-b border-slate-200 mb-3">
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-lg font-black text-indigo-600">🎯 團康禁說詞</h1>
-          <span v-if="roomData && roomData.currentRound" class="text-xs bg-indigo-100 text-indigo-800 font-black px-1.5 py-0.5 rounded">
+          <h1 class="text-lg font-black text-indigo-600 tracking-wide">⚠️ 陷阱發言中</h1>
+          <span v-if="roomData && roomData.status !== 'grand_finale' && roomData.currentRound" 
+                class="text-xs bg-indigo-100 text-indigo-800 font-black px-1.5 py-0.5 rounded">
             第 {{ roomData.currentRound }} 局
           </span>
         </div>
@@ -46,7 +48,10 @@
     <!-- 階段 1：大廳與登入 -->
     <div v-if="step === 'lobby'" class="flex-1 flex flex-col justify-center space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-        <h2 class="text-base font-bold text-slate-700">加入遊戲</h2>
+        <div>
+          <h2 class="text-lg font-black text-slate-800">加入遊戲</h2>
+          <p class="text-xs text-slate-400 mt-0.5">小心！你的日常口頭禪已被鎖定</p>
+        </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1">你的暱稱</label>
           <input v-model="nicknameInput" type="text" placeholder="例如：阿豪" maxlength="8"
@@ -126,12 +131,6 @@
                 class="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm disabled:opacity-50 hover:bg-indigo-700 transition">
           {{ assignModeInput === 'manual' ? '進入自由選人環節 ➔' : '隨機配對並開始寫題 ➔' }}
         </button>
-
-        <div class="pt-2 text-center border-t border-slate-100">
-          <button @click="resetAllScores" class="text-xs text-rose-500 hover:text-rose-700 underline font-medium">
-            ⚠️ 重新開始大賽（重置全員累積總分）
-          </button>
-        </div>
       </div>
       <div v-else class="bg-slate-50 p-4 rounded-xl text-center text-xs text-slate-500">
         等待房主設定規則並啟動第 {{ roomData.currentRound || 1 }} 局...
@@ -236,7 +235,6 @@
         </div>
       </div>
 
-      <!-- 個人出題面板 -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">填寫禁說詞</h3>
@@ -269,7 +267,6 @@
         </button>
       </div>
 
-      <!-- 審核清單 -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">題目審核 (滿 1/3 反對即退回)</h3>
@@ -321,7 +318,6 @@
     <!-- 階段 4：正式遊戲進行中 -->
     <div v-else-if="roomData && roomData.status === 'playing'" class="flex-1 flex flex-col space-y-3">
       
-      <!-- 📢 即時戰況廣播 -->
       <div v-if="roomData.latestEvent" class="bg-rose-600 text-white px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-lg animate-bounce">
         <div class="flex items-center gap-1.5 truncate">
           <span class="text-base">📢</span>
@@ -330,7 +326,6 @@
         <span class="text-[10px] opacity-80 shrink-0 ml-2">即時戰況</span>
       </div>
 
-      <!-- 💀 本人出局專屬揭曉橫幅 -->
       <div v-if="amIEliminated" class="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 text-center space-y-1 shadow-lg">
         <div class="text-xs text-rose-400 font-bold">💀 你已被淘汰出局！</div>
         <div class="text-xs text-slate-300">
@@ -341,13 +336,11 @@
         </div>
       </div>
 
-      <!-- 🏆 本人盲猜成功通關橫幅 -->
       <div v-if="amIWinner" class="bg-amber-500 text-white p-3 rounded-xl border border-amber-400 text-center space-y-1 shadow-lg">
         <div class="text-sm font-black">🎉 你已發動盲猜成功通關！</div>
         <div class="text-xs opacity-90">你的禁說詞是：<span class="font-black underline">{{ myRevealedWord }}</span></div>
       </div>
 
-      <!-- 👑 房主本人出局控制 -->
       <div v-if="isHost && roomData.players[currentUid]?.status === 'alive'" 
            class="bg-indigo-50 border border-indigo-200 p-2.5 rounded-xl flex justify-between items-center text-xs shadow-sm">
         <div>
@@ -360,7 +353,6 @@
         </button>
       </div>
 
-      <!-- ⚡ 存活玩家專屬：發動「盲猜反殺」按鈕 -->
       <div v-if="canIBigGuess" class="bg-gradient-to-r from-amber-500 to-orange-500 p-2.5 rounded-xl shadow text-white flex justify-between items-center">
         <div>
           <span class="font-black text-xs block">🔥 覺得猜出自己的詞了？</span>
@@ -372,7 +364,6 @@
         </button>
       </div>
 
-      <!-- 頂部切換標籤 -->
       <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
         <div class="flex gap-1">
           <button @click="playingTab = 'cards'" 
@@ -392,7 +383,6 @@
         <span class="text-xs font-bold text-indigo-600 pr-1">第 {{ roomData.currentRound || 1 }} 局</span>
       </div>
 
-      <!-- 撤銷（Undo）按鈕 -->
       <div v-if="isHost && lastElimination" class="bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
         <span class="text-rose-900">剛淘汰：<strong>{{ getPlayerName(lastElimination.targetUid) }}</strong></span>
         <button @click="undoLastElimination" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded font-bold transition">
@@ -400,10 +390,7 @@
         </button>
       </div>
 
-      <!-- 雙欄內容區 -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 items-start">
-        
-        <!-- 左欄：禁說詞看板 -->
         <div class="space-y-3" :class="{'hidden md:block': playingTab !== 'cards'}">
           <div class="text-xs font-bold text-slate-400 px-1 md:block hidden">🎯 其他玩家禁說詞</div>
           <div v-for="(p, uid) in otherPlayers" :key="uid" 
@@ -432,7 +419,6 @@
                 </div>
               </div>
 
-              <!-- 房主抓到按鈕 -->
               <div v-if="isHost && p.status === 'alive'" class="text-right">
                 <button @click="openEliminateModal(uid)" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition">
                   抓到！
@@ -442,7 +428,6 @@
           </div>
         </div>
 
-        <!-- 右欄：即時累積總積分榜 -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-2.5" 
              :class="{'hidden md:block': playingTab !== 'scores'}">
           <div class="flex justify-between items-center border-b pb-2">
@@ -478,7 +463,6 @@
 
       </div>
 
-      <!-- 房主結算與中途換人 -->
       <div v-if="isHost" class="pt-2 space-y-2 mt-auto">
         <button @click="endGameAndScore" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition">
           結束本局並顯示結算榜
@@ -496,11 +480,11 @@
       </div>
     </div>
 
-    <!-- 階段 5：總結算畫面（含計分流水帳明細） -->
+    <!-- 階段 5：單局結算畫面 -->
     <div v-else-if="roomData && roomData.status === 'ended'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center space-y-3">
-        <h2 class="text-xl font-black text-slate-800">🏆 累積總積分排行榜</h2>
-        <p class="text-xs text-slate-500">已進行完第 {{ roomData.currentRound || 1 }} 局 | 依累積總得分排名</p>
+        <h2 class="text-xl font-black text-slate-800">📋 第 {{ roomData.currentRound || 1 }} 局結算名冊</h2>
+        <p class="text-xs text-slate-500">本局得分與當前累積排行</p>
 
         <div class="divide-y divide-slate-100 text-sm pt-2">
           <div v-for="(res, idx) in sortedResults" :key="res.uid" class="py-3 flex justify-between items-start">
@@ -512,7 +496,6 @@
                 <span class="font-bold text-slate-800">{{ res.name }} <span v-if="res.uid === currentUid" class="text-xs text-indigo-500">(你)</span></span>
                 <span class="text-xs text-slate-500 block mt-0.5">本局題目：<strong class="text-indigo-600 font-bold">{{ res.word }}</strong></span>
                 
-                <!-- 計分流水帳標籤展開 -->
                 <div class="flex flex-wrap gap-1 mt-1.5 max-w-[200px]">
                   <span v-for="(b, bIdx) in res.breakdown" :key="bIdx" 
                         class="text-[10px] px-1.5 py-0.5 rounded font-medium"
@@ -530,17 +513,98 @@
           </div>
         </div>
 
-        <div v-if="isHost" class="space-y-2 pt-3">
+        <div v-if="isHost" class="space-y-2.5 pt-3">
           <button @click="resetRoom" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow transition">
             再玩一局（累積總分，進入第 {{ (roomData.currentRound || 1) + 1 }} 局）➔
           </button>
-          <button @click="resetAllScores" class="w-full text-center text-xs text-rose-500 hover:text-rose-700 underline font-medium py-1">
-            ⚠️ 結束本次大賽，將全員累積總分歸零
+          <button @click="triggerGrandFinale" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl text-xs font-black shadow transition flex items-center justify-center gap-1.5">
+            🏆 結束本次大賽並總頒獎！
           </button>
         </div>
         <div v-else class="text-xs text-slate-400 pt-2">
-          等待房主開啟第 {{ (roomData.currentRound || 1) + 1 }} 局...
+          等待房主開啟下一局或進行總結算...
         </div>
+      </div>
+    </div>
+
+    <!-- 階段 6：全新大賽總頒獎典禮畫面 (Grand Finale) -->
+    <div v-else-if="roomData && roomData.status === 'grand_finale'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full text-center">
+      
+      <div class="bg-gradient-to-b from-amber-500 via-amber-600 to-yellow-600 text-white p-6 rounded-3xl shadow-2xl relative overflow-hidden border-2 border-amber-300">
+        <div class="text-3xl animate-bounce mb-1">🎉 👑 🎉</div>
+        <h2 class="text-xs uppercase tracking-widest font-black text-amber-200">TRAP SPEAKING TOURNAMENT</h2>
+        <h1 class="text-2xl font-black tracking-wide text-white drop-shadow mt-0.5">
+          《陷阱發言中》總頒獎典禮
+        </h1>
+        <p class="text-xs text-amber-100 opacity-90 mt-1">
+          共激戰 {{ roomData.currentRound || 1 }} 局，最終總積分排名！
+        </p>
+
+        <!-- 頒獎台 (金銀銅 Podium) -->
+        <div class="flex items-end justify-center gap-2 mt-6 pt-2">
+          <!-- 亞軍 (第 2 名) -->
+          <div v-if="podiumResults[1]" class="flex-1 flex flex-col items-center">
+            <span class="text-xl">🥈</span>
+            <span class="font-bold text-xs truncate max-w-[85px] mt-1">{{ podiumResults[1].name }}</span>
+            <span class="text-[10px] text-amber-200 font-black">{{ podiumResults[1].totalScore }} 分</span>
+            <div class="w-full bg-amber-400/40 border border-amber-200/50 rounded-t-xl h-16 flex items-center justify-center text-lg font-black text-white mt-1 shadow-inner">
+              2
+            </div>
+          </div>
+
+          <!-- 冠軍 (第 1 名) -->
+          <div v-if="podiumResults[0]" class="flex-1 flex flex-col items-center -mt-4">
+            <div class="text-3xl animate-pulse">👑</div>
+            <span class="text-2xl -mt-1">🥇</span>
+            <span class="font-black text-sm text-yellow-100 truncate max-w-[95px] mt-0.5">{{ podiumResults[0].name }}</span>
+            <span class="text-xs text-white font-black bg-amber-700/60 px-2 py-0.5 rounded-full mt-0.5">{{ podiumResults[0].totalScore }} 分</span>
+            <div class="w-full bg-amber-300/80 border-2 border-yellow-200 rounded-t-2xl h-24 flex items-center justify-center text-2xl font-black text-amber-900 mt-1 shadow-lg">
+              1
+            </div>
+          </div>
+
+          <!-- 季軍 (第 3 名) -->
+          <div v-if="podiumResults[2]" class="flex-1 flex flex-col items-center">
+            <span class="text-xl">🥉</span>
+            <span class="font-bold text-xs truncate max-w-[85px] mt-1">{{ podiumResults[2].name }}</span>
+            <span class="text-[10px] text-amber-200 font-black">{{ podiumResults[2].totalScore }} 分</span>
+            <div class="w-full bg-amber-500/40 border border-amber-200/40 rounded-t-xl h-12 flex items-center justify-center text-base font-black text-white mt-1 shadow-inner">
+              3
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-left space-y-2">
+        <h3 class="font-bold text-xs text-slate-500 uppercase tracking-wider px-1">全體選手最終戰報</h3>
+        <div class="divide-y divide-slate-100 text-sm">
+          <div v-for="(res, idx) in sortedResults" :key="res.uid" class="py-2.5 flex justify-between items-center px-1">
+            <div class="flex items-center gap-2">
+              <span class="w-6 text-center font-black text-base" 
+                    :class="idx === 0 ? 'text-amber-500' : (idx === 1 ? 'text-slate-400' : (idx === 2 ? 'text-amber-700' : 'text-slate-300'))">
+                {{ idx + 1 }}
+              </span>
+              <div>
+                <span class="font-bold text-slate-800">{{ res.name }} <span v-if="res.uid === currentUid" class="text-xs text-indigo-500">(你)</span></span>
+                <span v-if="idx === 0" class="ml-1 text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded border border-amber-300">總冠軍</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="font-black text-indigo-600 text-base">{{ res.totalScore }} 分</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isHost" class="pt-2">
+        <button @click="startFreshTournament" 
+                class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg active:scale-98 transition flex items-center justify-center gap-1.5">
+          🔄 開始全新大賽（重置總分，回到第 1 局）
+        </button>
+        <p class="text-[11px] text-slate-400 mt-2">將保留全員名單，總分歸零並重置回第 1 局</p>
+      </div>
+      <div v-else class="text-xs text-slate-400 py-3">
+        本次大賽圓滿落幕！等待房主開啟全新大賽...
       </div>
     </div>
 
@@ -613,29 +677,23 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
-    // 擴充海量高頻派對題庫
     const EXPANDED_BANKS = {
-      // 1. 口語動詞（105 個，無單字）
       verbs: [
         "吃飯", "睡覺", "喝水", "喝酒", "抽菸", "滑手機", "看電視", "開車", "騎車", "走路", "跑步", "上班", "下班", "上課", "下課", "買單", "結帳", "點餐", "排隊", "遲到", "聊天", "講電話", "拍照", "打卡", "錄影", "發動態", "聽音樂", "玩遊戲", "追劇", "看電影", "逛街", "購物", "花錢", "存錢", "算錢", "洗澡", "洗頭", "刷牙", "洗衣服", "曬衣服", "倒垃圾", "打掃", "整理房間", "出門", "回家", "退房", "訂位", "叫外送", "搭捷運", "搭公車", "搭火車", "搭高鐵", "坐計程車", "迷路", "問路", "看導航", "找停車位", "借錢", "還錢", "找零錢", "戴口罩", "脫外套", "換鞋子", "穿衣服", "吹頭髮", "充電", "換電池", "傳訊息", "已讀", "回覆", "打電話", "掛電話", "視訊", "截圖", "按讚", "分享", "留言", "發脾氣", "吵架", "道歉", "開玩笑", "說謊", "打賭", "請客", "分攤", "簽名", "蓋章", "請假", "離職", "找工作", "投履歷", "面試", "出差", "加班", "請病假", "看醫生", "吃藥", "量體溫", "運動", "健身", "重訓", "拉筋", "游泳", "爬山", "露營", "烤肉", "煮飯", "切菜", "洗碗", "吃宵夜", "喝下午茶", "外帶", "內用"
       ],
-      // 2. 常見名詞（200 個）
       nouns: [
         "手機", "錢包", "鑰匙", "悠遊卡", "充電線", "行動電源", "耳機", "眼鏡", "手錶", "衛生紙", "濕紙巾", "雨傘", "水壺", "保溫瓶", "保溫杯", "環保袋", "背包", "外套", "拖鞋", "襪子", "帽子", "皮夾", "指甲剪", "梳子", "鏡子", "指甲油", "牙刷", "牙膏", "毛巾", "吹風機", "洗面乳", "沐浴乳", "洗髮精", "護手霜", "防曬乳", "香水", "口罩", "面紙盒", "垃圾桶", "掃把", "吸塵器", "衣架", "枕頭", "棉被", "床單", "桌子", "椅子", "沙發", "電視", "冷氣", "電風扇", "遙控器",
         "便當", "滷肉飯", "牛肉麵", "鹽酥雞", "雞排", "臭豆腐", "肉圓", "珍珠奶茶", "手搖飲", "紅茶", "綠茶", "烏龍茶", "奶茶", "拿鐵", "美式咖啡", "可樂", "雪碧", "啤酒", "高粱", "威士忌", "吐司", "三明治", "蛋餅", "漢堡", "薯條", "炸雞", "披薩", "義大利麵", "火鍋", "壽喜燒", "壽司", "拉麵", "咖哩飯", "水餃", "鍋貼", "小籠包", "包子", "饅頭", "地瓜球", "紅豆餅", "車輪餅", "布丁", "蛋糕", "冰淇淋", "巧克力", "洋芋片", "餅乾", "泡麵", "茶葉蛋", "關東煮",
         "機車", "汽車", "腳踏車", "公車", "捷運", "火車", "高鐵", "飛機", "計程車", "船", "卡車", "救護車", "警車", "消防車", "超商", "便利商店", "超市", "大賣場", "全聯", "好市多", "菜市場", "夜市", "百貨公司", "電影院", "KTV", "咖啡廳", "早午餐店", "餐廳", "熱炒店", "酒吧", "居酒屋", "飯店", "旅館", "民宿", "公園", "學校", "圖書館", "醫院", "診所", "藥局", "銀行", "郵局", "警察局", "加油站", "停車場", "捷運站", "火車站", "機場", "月台", "紅綠燈", "斑馬線",
         "狗", "貓", "鳥", "魚", "兔子", "倉鼠", "烏龜", "蜥蜴", "青蛙", "蚊子", "蟑螂", "蒼蠅", "螞蟻", "蜘蛛", "老鼠", "鴿子", "麻雀", "流浪狗", "流浪貓", "樹木", "花草", "多肉植物", "仙人掌", "盆栽", "玫瑰", "向日葵", "樹葉", "雜草", "太陽", "月亮", "星星", "彩虹", "白雲", "下雨", "打雷", "閃電", "颱風", "地震", "沙灘", "海水", "河流", "瀑布", "森林", "草地", "石頭", "泥土", "灰塵", "陰影", "空氣", "陽光"
       ],
-      // 3. 口頭禪與發語詞（含 20 個指定 * 流行語，無言、有趣、酷喔）
       phrases: [
         "真的假的", "笑死", "屁啦", "蛤", "所以勒", "確實", "要確定捏", "沒事啦", "太誇張了", "好好笑", "傻眼", "太扯了", "超讚", "隨便", "我不知道", "先不要", "好餓", "對啊", "好像", "然後", "就是說", "等等", "哪有", "最好是", "怎麼可能", "拜託", "無言", "救命", "誇張耶", "算了啦", "有事嗎", "幹嘛這樣", "你認真", "少來", "笑爛", "超派", "歸剛欸", "真的假的啦", "好扯", "看情況", "不知道耶", "好喔", "OK啦", "哭啊", "沒差", "隨便啦", "笑不出來", "超白痴", "沒影", "好猛", "有趣", "酷喔",
         "*何意味", "*破防", "*牛逼", "*拿捏", "*芭比Q了", "*純純的", "*內捲", "*躺平", "*畫大餅", "*帶節奏", "*踩雷", "*顏值", "*立人設", "*智商稅", "*吃瓜", "*甩鍋", "*硬核", "*接地氣", "*整活", "*大招"
       ],
-      // 4. 情緒與狀態詞
       adjs: [
         "誇張", "很累", "超強", "難吃", "好吃", "好笑", "可愛", "可憐", "尷尬", "離譜", "厲害", "可怕", "無聊", "好爽", "好飽", "好貴", "便宜", "麻煩", "倒楣", "噁心", "奇怪", "心虛", "焦慮", "煩躁", "開心", "難過", "生氣", "委屈", "緊張", "興奮", "放鬆", "佩服", "羨慕", "嫉妒", "無奈", "疲憊", "崩潰", "心累", "失望", "驚訝", "困惑", "慌張", "得意", "後悔", "無助", "感動", "心動", "冷靜", "糾結", "心痛", "超雷", "有趣", "酷喔"
       ],
-      // 5. 知名人物與虛擬角色（無地標）
       celebs: [
         "周杰倫", "蔡依林", "伍佰", "五月天", "周星馳", "大谷翔平", "李多慧", "林俊傑", "張惠妹", "泰勒絲", "馬斯克", "川普", "梅西", "C羅", "黃仁勳", "統神", "國動", "館長", "蔡阿嘎", "Joeman", "志祺七七", "阿滴", "滴妹", "IU", "Lisa", "Jennie", "NewJeans", "IVE", "子瑜",
         "蠟筆小新", "名偵探柯南", "哆啦A夢", "皮卡丘", "孫悟空", "櫻桃小丸子", "兩津勘吉", "海綿寶寶", "派大星", "魯夫", "索隆", "漩渦鳴人", "五條悟", "虎杖悠仁", "炭治郎", "禰豆子", "安妮亞", "芙莉蓮", "費倫", "欣梅爾", "瑪利歐", "路易吉", "庫巴", "卡比", "索尼克", "鋼鐵人", "蜘蛛人", "蝙蝠俠", "小丑", "死侍", "艾莎", "初音未來", "博衣小夜璃", "兔田佩克拉", "星街彗星", "Gura"
@@ -684,6 +742,47 @@
       } catch(e) {}
     }
 
+    function playFanfareSound() {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const notes = [
+          { f: 261.63, d: 0.12, t: 0 },
+          { f: 329.63, d: 0.12, t: 0.14 },
+          { f: 392.00, d: 0.12, t: 0.28 },
+          { f: 523.25, d: 0.45, t: 0.42 },
+          { f: 392.00, d: 0.18, t: 0.95 },
+          { f: 523.25, d: 0.9, t: 1.15 }
+        ];
+
+        notes.forEach(n => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(n.f, now + n.t);
+          gain.gain.setValueAtTime(0.25, now + n.t);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + n.t);
+          osc.stop(now + n.t + n.d);
+        });
+
+        [523.25, 659.25, 783.99, 1046.5].forEach(freq => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + 1.15);
+          gain.gain.setValueAtTime(0.12, now + 1.15);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + 1.15);
+          osc.stop(now + 2.8);
+        });
+      } catch(e) {}
+    }
+
     function triggerVibration(pattern = [200, 100, 200]) {
       if (navigator.vibrate) navigator.vibrate(pattern);
     }
@@ -719,6 +818,7 @@
         const lureHelper2 = ref('');
 
         let lastEventTimestamp = 0;
+        let lastPlayedStatus = '';
 
         onMounted(() => {
           auth.onAuthStateChanged(async (user) => {
@@ -747,7 +847,7 @@
         const autoPublishRevealedWords = (rId) => {
           if (!roomData.value?.players) return;
           const revealed = roomData.value.revealedWords || {};
-          const isEnded = roomData.value.status === 'ended';
+          const isEnded = roomData.value.status === 'ended' || roomData.value.status === 'grand_finale';
 
           Object.entries(roomData.value.players).forEach(([pUid, p]) => {
             if ((isEnded || p.status === 'eliminated' || p.status === 'won') && !revealed[pUid]) {
@@ -770,6 +870,14 @@
             roomData.value = snap.val() ? JSON.parse(JSON.stringify(snap.val())) : null;
             syncWordListeners(rId);
             autoPublishRevealedWords(rId);
+
+            if (roomData.value?.status === 'grand_finale' && lastPlayedStatus !== 'grand_finale') {
+              lastPlayedStatus = 'grand_finale';
+              playFanfareSound();
+              triggerVibration([200, 100, 200, 100, 400]);
+            } else if (roomData.value?.status !== 'grand_finale') {
+              lastPlayedStatus = roomData.value?.status || '';
+            }
 
             if (roomData.value?.latestEvent && roomData.value.latestEvent.timestamp > lastEventTimestamp) {
               lastEventTimestamp = roomData.value.latestEvent.timestamp;
@@ -814,7 +922,6 @@
           return roomData.value?.categoryRules || '自訂主題';
         });
 
-        // 智慧抽詞：精確依照房主下拉類別抽樣
         const pickSmartIdea = () => {
           const catKey = roomData.value?.categoryKey || selectedCategoryKey.value;
           let pool = [];
@@ -1214,7 +1321,6 @@
           });
         };
 
-        // 判定盲猜：計算明細流水帳與準確名次
         const judgeBlindGuess = async (isCorrect) => {
           const guesserUid = roomData.value.pendingGuess.uid;
           const guesserName = roomData.value.pendingGuess.name;
@@ -1255,9 +1361,8 @@
               isWin: true
             };
           } else {
-            // 猜錯：判定為第 (total - history.length) 名
             const rank = total - history.length;
-            const rankScore = history.length + 1; // 第 1 位死得 1 分，第 2 位得 2 分
+            const rankScore = history.length + 1;
 
             const curTargetTotal = roomData.value.players[guesserUid]?.totalScore ?? 0;
             const curTargetRound = roomData.value.players[guesserUid]?.roundScore || 0;
@@ -1315,16 +1420,13 @@
           lureHelper2.value = '';
         };
 
-        // 一般淘汰：校正名次倒置（第 1 個被淘汰的人是最後一名）
         const confirmElimination = async () => {
           const tUid = eliminatingTargetUid.value;
           const tName = roomData.value.players[tUid]?.name || '玩家';
           const history = roomData.value.eliminationHistory || [];
           const total = playerCount.value;
-          
-          // 名次倒置修復：第 1 位死的是第 N 名，第 2 位死的是第 N-1 名
           const rank = total - history.length;
-          const rankScore = history.length + 1; // 依序獲得 1分, 2分...
+          const rankScore = history.length + 1;
 
           const helpers = [];
           const helperNames = [];
@@ -1440,11 +1542,10 @@
           newHostUidSelected.value = '';
         };
 
-        // 結束遊戲結算：最後存活者為第 1 名
         const endGameAndScore = async () => {
           const updates = { status: 'ended' };
           const total = playerCount.value;
-          const survivorBonus = total + 1; // 倖存者高額獎勵
+          const survivorBonus = total + 1;
 
           Object.keys(roomData.value.players).forEach(uid => {
             const p = roomData.value.players[uid];
@@ -1465,6 +1566,11 @@
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
         };
 
+        const triggerGrandFinale = async () => {
+          if (!confirm('🏆 確定要結束本次系列大賽並進入「總頒獎典禮」嗎？\n全體玩家將同步見證總冠軍頒獎與號角音樂！')) return;
+          await db.ref(`rooms/${roomId.value}/public`).update({ status: 'grand_finale' });
+        };
+
         const sortedResults = computed(() => {
           if (!roomData.value?.players) return [];
           const revealed = roomData.value.revealedWords || {};
@@ -1483,6 +1589,8 @@
             };
           }).sort((a, b) => b.totalScore - a.totalScore);
         });
+
+        const podiumResults = computed(() => sortedResults.value.slice(0, 3));
 
         const resetRoom = async () => {
           try {
@@ -1518,25 +1626,44 @@
               players: pReset
             });
           } catch (err) {
-            alert('重開新局失敗：' + err.message);
+            alert('進入下一局失敗：' + err.message);
           }
         };
 
-        const resetAllScores = async () => {
-          if (!confirm('確定要將所有玩家的「累積總得分」全部歸零重計嗎？（這將重置回第 1 局）')) return;
+        const startFreshTournament = async () => {
+          if (!confirm('確定要開始全新一屆大賽嗎？\n全員總分將重置歸零，並正式從【第 1 局】重新開始！')) return;
           try {
-            const updates = { currentRound: 1, revealedWords: null };
-            Object.keys(roomData.value.players).forEach(u => {
-              updates[`players/${u}/totalScore`] = 0;
-              updates[`players/${u}/roundScore`] = 0;
-              updates[`players/${u}/score`] = 0;
-              updates[`players/${u}/hasGuessed`] = false;
-              updates[`players/${u}/breakdown`] = [];
+            const uids = Object.keys(roomData.value?.players || {});
+            await Promise.all(uids.map(u => db.ref(`rooms/${roomId.value}/words/${u}`).remove()));
+
+            const pReset = {};
+            for (let u of uids) {
+              pReset[u] = {
+                name: roomData.value.players[u].name,
+                isHost: u === roomData.value.hostId,
+                status: 'alive',
+                hasGuessed: false,
+                totalScore: 0,
+                roundScore: 0,
+                score: 0,
+                rank: null,
+                assignedTarget: null,
+                breakdown: []
+              };
+            }
+
+            await db.ref(`rooms/${roomId.value}/public`).update({
+              status: 'waiting',
+              currentRound: 1,
+              wordStatus: null,
+              revealedWords: null,
+              eliminationHistory: null,
+              latestEvent: null,
+              pendingGuess: null,
+              players: pReset
             });
-            await db.ref(`rooms/${roomId.value}/public`).update(updates);
-            alert('所有玩家累積總得分已成功歸零！');
-          } catch (e) {
-            alert('歸零失敗：' + e.message);
+          } catch (err) {
+            alert('重啟大賽失敗：' + err.message);
           }
         };
 
@@ -1546,7 +1673,7 @@
           step, nicknameInput, nickname, roomInput, roomId, currentUid,
           roomData, wordsData, isHost, playerCount, otherPlayers, aliveCount,
           selectedCategoryKey, customRulesInput, assignModeInput, wordInput, wordCategoryInput,
-          myAssignedTargetUid, vetoThreshold, reviewableWords, canStartGame, sortedResults,
+          myAssignedTargetUid, vetoThreshold, reviewableWords, canStartGame, sortedResults, podiumResults,
           showTransferModal, newHostUidSelected, eliminatingTargetUid, lureHelper1, lureHelper2,
           lastElimination, localSelectedTarget, availableTargetsToPick, pairedCount,
           isAllPairingComplete, hasDeadlock, circleNodes, circleLinks,
@@ -1556,8 +1683,8 @@
           unlockMyTarget, resetAllPicks, startWritingPhaseFromPicking, submitWord, toggleVeto,
           getVetoCount, isWordVetoed, hasIVetoed, startGamePlay, openEliminateModal,
           confirmElimination, undoLastElimination, transferHost, endGameAndScore, resetRoom,
-          resetAllScores, getPlayerName, leaveRoom, pickSmartIdea, triggerBlindGuessChallenge,
-          judgeBlindGuess, dismissBlindGuess
+          triggerGrandFinale, startFreshTournament, getPlayerName, leaveRoom, pickSmartIdea, 
+          triggerBlindGuessChallenge, judgeBlindGuess, dismissBlindGuess
         };
       }
     }).mount('#app');
