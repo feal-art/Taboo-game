@@ -18,7 +18,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
+<body class="bg-slate-100 text-slate-800 min-h-screen selection:bg-indigo-500 selection:text-white">
   <div id="app" class="max-w-xl mx-auto min-h-screen flex flex-col p-4">
 
     <!-- 頂部導航 -->
@@ -31,15 +31,19 @@
             第 {{ roomData.currentRound }} 局
           </span>
         </div>
-        <p v-if="roomId" class="text-xs text-slate-500">數字房號：<span class="font-mono font-black text-base text-indigo-700 tracking-wider">{{ roomId }}</span></p>
+        <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+          <span v-if="roomId">房號：<strong class="font-mono font-black text-indigo-700 text-sm">{{ roomId }}</strong></span>
+          <span v-if="isHost && roomData && roomData.hostRescueCode" class="text-amber-600 font-bold bg-amber-50 px-1 rounded border border-amber-200">
+            救援碼：{{ roomData.hostRescueCode }}
+          </span>
+        </div>
       </div>
       <div v-if="currentUid" class="text-right flex items-center gap-2">
         <div>
-          <span class="text-sm font-semibold text-slate-700 block leading-tight truncate max-w-[90px]">{{ nickname || '連線中' }}</span>
+          <span class="text-sm font-semibold text-slate-700 block leading-tight truncate max-w-[85px]">{{ nickname || '連線中' }}</span>
           <span v-if="isHost" class="text-[10px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-bold border border-amber-300">房主</span>
           <span v-else-if="amISpectator" class="text-[10px] bg-sky-100 text-sky-800 px-1 py-0.2 rounded font-bold border border-sky-300">觀戰中</span>
         </div>
-        <!-- 房主專屬玩家管理入口 (全階段可用) -->
         <button v-if="isHost && roomId" @click="showManageModal = true" title="管理/踢除玩家" 
                 class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded transition font-bold flex items-center gap-0.5">
           👥 踢人
@@ -51,7 +55,7 @@
       </div>
     </header>
 
-    <!-- 階段 1：大廳與登入 (限制暱稱 6 字) -->
+    <!-- 階段 1：大廳與登入 (允許 1～6 字) -->
     <div v-if="step === 'lobby'" class="flex-1 flex flex-col justify-center space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <div>
@@ -59,8 +63,8 @@
           <p class="text-xs text-slate-400 mt-0.5">小心！你的日常口頭禪已被鎖定</p>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">你的暱稱（2～6 字，本房內不可重複）</label>
-          <input v-model="nicknameInput" type="text" placeholder="例如：阿豪" maxlength="6"
+          <label class="block text-xs font-semibold text-slate-500 mb-1">你的暱稱（1～6 個字，房內不可重複）</label>
+          <input v-model="nicknameInput" type="text" placeholder="例如：黑、阿豪" maxlength="6"
                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="pt-2 border-t border-slate-100 space-y-3">
@@ -84,7 +88,7 @@
     <div v-else-if="roomData && roomData.status === 'waiting'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold text-sm text-slate-700">玩家名單 ({{ playerCount }}/10 人)</h3>
+          <h3 class="font-bold text-sm text-slate-700">玩家名單 ({{ activePlayerCount }}/10 人)</h3>
           <span class="text-xs text-indigo-600 font-bold">累積戰況</span>
         </div>
         <ul class="divide-y divide-slate-100 text-sm">
@@ -200,7 +204,6 @@
         </div>
       </div>
 
-      <!-- 選人控制 -->
       <div v-if="!amISpectator" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div v-if="!myAssignedTargetUid">
           <label class="block text-xs text-slate-500 mb-1">請選擇尚未被認領的對象：</label>
@@ -239,7 +242,7 @@
       </div>
     </div>
 
-    <!-- 階段 3：出題與審核 (限制禁說詞 12 字) -->
+    <!-- 階段 3：出題與審核 (限制禁說詞 12 字，支援房主強制通過) -->
     <div v-else-if="roomData && roomData.status === 'setting'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full">
       <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl text-xs text-indigo-900 flex justify-between items-center">
         <div>
@@ -252,7 +255,7 @@
         </div>
       </div>
 
-      <!-- 個人出題面板 (限制禁說詞最長 12 字) -->
+      <!-- 個人出題面板 -->
       <div v-if="!amISpectator" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">填寫禁說詞</h3>
@@ -288,7 +291,7 @@
         👁️ 觀戰中：本局進行中加入，正等待全員完成寫題與審核...
       </div>
 
-      <!-- 審核清單 -->
+      <!-- 審核清單 (房主擁有一鍵強制通過按鈕) -->
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex justify-between items-center">
           <h3 class="font-bold text-sm text-slate-700">題目審核 (滿 1/3 反對即退回)</h3>
@@ -302,8 +305,15 @@
         <div v-for="(item, tUid) in reviewableWords" :key="tUid" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-slate-800 text-sm">受測者：{{ getPlayerName(tUid) }}</span>
-            <span v-if="isWordVetoed(item)" class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">已達門檻：退回重出</span>
-            <span v-else class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">認可通過</span>
+            <div class="flex items-center gap-1.5">
+              <span v-if="isWordVetoed(item)" class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">已達門檻：退回重出</span>
+              <span v-else class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">認可通過</span>
+              <!-- 房主強制通過裁決按鈕 -->
+              <button v-if="isHost && isWordVetoed(item)" @click="forceApproveWord(tUid)" 
+                      class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] px-2 py-0.5 rounded font-bold shadow">
+                ⚡ 房主強制通過
+              </button>
+            </div>
           </div>
 
           <div class="text-slate-800 text-sm">
@@ -337,7 +347,7 @@
       </div>
     </div>
 
-    <!-- 階段 4：正式遊戲進行中 -->
+    <!-- 階段 4：正式遊戲進行中 (盲猜挑戰鎖定抓人鍵、最後一人倖存自動結算) -->
     <div v-else-if="roomData && roomData.status === 'playing'" class="flex-1 flex flex-col space-y-3">
       
       <!-- 📢 即時戰況廣播 -->
@@ -371,24 +381,24 @@
         <div class="text-xs opacity-90">你的禁說詞是：<span class="font-black underline">{{ myRevealedWord }}</span></div>
       </div>
 
-      <!-- 👑 房主本人出局控制 -->
+      <!-- 👑 房主本人出局控制 (盲猜中鎖定) -->
       <div v-if="isHost && roomData.players[currentUid]?.status === 'alive'" 
            class="bg-indigo-50 border border-indigo-200 p-2.5 rounded-xl flex justify-between items-center text-xs shadow-sm">
         <div>
           <span class="font-bold text-indigo-900 block">👑 房主本人出局控制：</span>
           <span class="text-indigo-600 text-[11px]">若你說出禁詞被抓或自爆，點此結算</span>
         </div>
-        <button @click="openEliminateModal(currentUid)" 
-                class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold shadow active:scale-95 transition">
+        <button @click="openEliminateModal(currentUid)" :disabled="!!roomData.pendingGuess"
+                class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold shadow active:scale-95 transition disabled:opacity-40">
           抓到房主（我出局）
         </button>
       </div>
 
       <!-- ⚡ 存活玩家專屬：發動「盲猜反殺」按鈕 -->
-      <div v-if="canIBigGuess" class="bg-gradient-to-r from-amber-500 to-orange-500 p-2.5 rounded-xl shadow text-white flex justify-between items-center">
+      <div v-if="canIBigGuess && !roomData.pendingGuess" class="bg-gradient-to-r from-amber-500 to-orange-500 p-2.5 rounded-xl shadow text-white flex justify-between items-center">
         <div>
           <span class="font-black text-xs block">🔥 覺得猜出自己的詞了？</span>
-          <span class="text-[10px] opacity-90">猜對吸走所有人分數；猜錯自爆淘汰！（每局限一次）</span>
+          <span class="text-[10px] opacity-90">猜對吸走存活者分數；猜錯自爆淘汰！（每局限一次）</span>
         </div>
         <button @click="triggerBlindGuessChallenge" 
                 class="bg-white text-orange-600 font-black px-3 py-1.5 rounded-lg text-xs shadow hover:bg-orange-50 active:scale-95 transition">
@@ -420,7 +430,7 @@
       <div v-if="isHost && lastElimination" class="bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
         <span class="text-rose-900">剛淘汰：<strong>{{ getPlayerName(lastElimination.targetUid) }}</strong></span>
         <button @click="undoLastElimination" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded font-bold transition">
-          ↩️ 撤銷本次淘汰與計分
+          ↩️ 撤銷本次淘汰（防洩密換新詞）
         </button>
       </div>
 
@@ -459,9 +469,10 @@
                 </div>
               </div>
 
-              <!-- 房主抓到按鈕 -->
+              <!-- 房主抓到按鈕 (若正有人盲猜，暫時反灰鎖定避免判定衝突) -->
               <div v-if="isHost && p.status === 'alive'" class="text-right">
-                <button @click="openEliminateModal(uid)" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition">
+                <button @click="openEliminateModal(uid)" :disabled="!!roomData.pendingGuess"
+                        class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition disabled:opacity-40">
                   抓到！
                 </button>
               </div>
@@ -570,7 +581,7 @@
       </div>
     </div>
 
-    <!-- 階段 6：大賽總頒獎典禮畫面 -->
+    <!-- 階段 6：大賽總頒獎典禮 (Grand Finale，支援並列冠軍Tie) -->
     <div v-else-if="roomData && roomData.status === 'grand_finale'" class="flex-1 flex flex-col space-y-4 max-w-md mx-auto w-full text-center">
       
       <div class="bg-gradient-to-b from-amber-500 via-amber-600 to-yellow-600 text-white p-6 rounded-3xl shadow-2xl relative overflow-hidden border-2 border-amber-300">
@@ -621,12 +632,12 @@
           <div v-for="(res, idx) in sortedResults" :key="res.uid" class="py-2.5 flex justify-between items-center px-1">
             <div class="flex items-center gap-2">
               <span class="w-6 text-center font-black text-base" 
-                    :class="idx === 0 ? 'text-amber-500' : (idx === 1 ? 'text-slate-400' : (idx === 2 ? 'text-amber-700' : 'text-slate-300'))">
-                {{ idx + 1 }}
+                    :class="res.finalRank === 1 ? 'text-amber-500' : (res.finalRank === 2 ? 'text-slate-400' : (res.finalRank === 3 ? 'text-amber-700' : 'text-slate-300'))">
+                {{ res.finalRank }}
               </span>
               <div>
                 <span class="font-bold text-slate-800">{{ res.name }} <span v-if="res.uid === currentUid" class="text-xs text-indigo-500">(你)</span></span>
-                <span v-if="idx === 0" class="ml-1 text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded border border-amber-300">總冠軍</span>
+                <span v-if="res.finalRank === 1" class="ml-1 text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded border border-amber-300">總冠軍</span>
               </div>
             </div>
             <div class="text-right">
@@ -690,17 +701,17 @@
         </div>
         <div class="space-y-2 pt-1">
           <button @click="judgeBlindGuess(true)" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition">
-            🎉 猜對了！（其他所有人 -1 分，他獨得大獎並成功通關）
+            🎉 猜對了！（存活者各 -1，他拿全場扣分＋冠軍分）
           </button>
           <button @click="judgeBlindGuess(false)" class="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow transition">
-            💀 猜錯自爆！（他立即出局，其他所有人各 +1 分）
+            💀 猜錯自爆！（他立即出局，存活者各 +1 分）
           </button>
           <button @click="dismissBlindGuess" class="w-full py-1 text-slate-400 hover:text-slate-600 text-[11px] underline">誤觸取消</button>
         </div>
       </div>
     </div>
 
-    <!-- 房主管理名單與踢除彈窗 (全階段可用) -->
+    <!-- 房主管理名單與踢除彈窗 -->
     <div v-if="showManageModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-3 shadow-xl">
         <div class="flex justify-between items-center border-b pb-2">
@@ -732,7 +743,7 @@
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full space-y-3 shadow-2xl border-2 border-rose-500">
         <h3 class="font-bold text-rose-600 text-sm">⚠️ 確定要踢除該玩家嗎？</h3>
         <p class="text-xs text-slate-600">
-          確定要將【<strong class="text-slate-800">{{ kickingTargetName }}</strong>】強制移出房間嗎？此操作將清除其進度。
+          確定要將【<strong class="text-slate-800">{{ kickingTargetName }}</strong>】強制移出房間嗎？若處於出題階段，出題關係將安全重置。
         </p>
         <div class="flex gap-2 pt-2">
           <button @click="kickingTargetUid = null; kickingTargetName = ''" class="flex-1 py-1.5 bg-slate-200 text-slate-700 text-xs rounded-lg font-bold">
@@ -768,7 +779,7 @@
       </div>
     </div>
 
-    <!-- 申請接管等待彈窗 (換瀏覽器玩家等待房主授權) -->
+    <!-- 申請接管等待彈窗 -->
     <div v-if="takeoverWaiting" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
       <div class="bg-white p-5 rounded-2xl max-w-xs w-full text-center space-y-3 shadow-xl">
         <div class="text-3xl animate-bounce">⏳</div>
@@ -827,6 +838,9 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
+    // 綁定全域點擊事件防休眠
+    window.addEventListener('click', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true });
+    window.addEventListener('touchstart', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true });
 
     function playBuzzerSound() {
       try {
@@ -973,6 +987,16 @@
               } else {
                 localStorage.removeItem('taboo_roomId');
               }
+            }
+          });
+
+          // 切回前景時自動重連校準
+          document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && roomId.value) {
+              initAudio();
+              db.ref(`rooms/${roomId.value}/public`).once('value').then(s => {
+                if (s.exists()) roomData.value = s.val();
+              });
             }
           });
         });
@@ -1124,15 +1148,19 @@
           window.location.reload();
         };
 
+        // 房主建房：生成 4 碼救援碼防死結
         const createRoom = async () => {
           const name = nicknameInput.value.trim();
-          if (!name || name.length < 2) return alert('暱稱請輸入 2～6 個字！');
+          if (!name || name.length < 1 || name.length > 6) return alert('暱稱請輸入 1～6 個字！');
           initAudio();
           nickname.value = name.slice(0, 6);
           const newRoomId = Math.floor(1000 + Math.random() * 9000).toString();
+          const hostRescueCode = Math.floor(1000 + Math.random() * 9000).toString();
+
           const initialData = {
             status: 'waiting',
             hostId: currentUid.value,
+            hostRescueCode: hostRescueCode,
             categoryKey: 'phrases',
             categoryRules: '',
             assignMode: 'random',
@@ -1160,10 +1188,10 @@
           bindRoom(newRoomId);
         };
 
-        // 核心加入邏輯：包含重複名稱檢驗、接管申請與中途觀戰
+        // 加入房間：重複名稱檢驗、房主專屬救援碼與中途觀戰
         const joinRoom = async () => {
           const name = nicknameInput.value.trim().slice(0, 6);
-          if (!name || name.length < 2) return alert('暱稱請輸入 2～6 個字！');
+          if (!name || name.length < 1 || name.length > 6) return alert('暱稱請輸入 1～6 個字！');
           if (!roomInput.value.trim() || roomInput.value.trim().length !== 4) {
             return alert('請輸入 4 位數純數字房號！');
           }
@@ -1175,7 +1203,6 @@
           const rData = snap.val();
           const existingPlayers = rData.players || {};
 
-          // 1. 檢查是否同名
           let duplicateUid = null;
           Object.entries(existingPlayers).forEach(([u, p]) => {
             if (p.name === name) duplicateUid = u;
@@ -1183,15 +1210,33 @@
 
           if (duplicateUid) {
             if (duplicateUid === currentUid.value) {
-              // 同裝置重整
               nickname.value = name;
               bindRoom(rId);
               return;
             }
-            // 不同裝置但同名 -> 詢問是否申請接管
+
+            // 特例：若欲接管者是房主本人，提示輸入「房主救援碼」直接接管，避免無人審核死結！
+            if (duplicateUid === rData.hostId) {
+              const enteredCode = prompt(`檢測到您是房主【${name}】！\n請輸入建房時頂部顯示的 4 位「房主救援碼」即可立即奪回房主身分：`);
+              if (enteredCode && enteredCode.trim() === rData.hostRescueCode) {
+                await approveTakeover({
+                  newUid: currentUid.value,
+                  oldUid: duplicateUid,
+                  nickname: name
+                }, rId);
+                nickname.value = name;
+                alert('🎉 救援碼核對成功！您已成功重奪房主權限並接續進度！');
+                bindRoom(rId);
+                return;
+              } else if (enteredCode !== null) {
+                alert('救援碼錯誤！');
+                return;
+              }
+            }
+
+            // 一般玩家申請接管
             const askTakeover = confirm(`房間內已有【${name}】！\n若您是剛剛斷線或更換瀏覽器，是否要向房主申請「接管原進度」？`);
             if (askTakeover) {
-              // 提交接管申請
               pendingTakeoverName.value = name;
               takeoverWaiting.value = true;
               roomId.value = rId;
@@ -1204,7 +1249,6 @@
               };
               await db.ref(`rooms/${rId}/public/takeoverRequests/${currentUid.value}`).set(reqPayload);
 
-              // 監聽接管批准
               const listenRef = db.ref(`rooms/${rId}/public/players/${currentUid.value}`);
               const onApproved = listenRef.on('value', (s) => {
                 if (s.exists()) {
@@ -1219,7 +1263,6 @@
             return;
           }
 
-          // 2. 全新玩家加入：檢查遊戲階段 (若已出題或進行中，則設為觀戰)
           nickname.value = name;
           let playerStatus = 'alive';
 
@@ -1249,69 +1292,62 @@
           takeoverWaiting.value = false;
         };
 
-        // 房主同意換裝置接管：平滑轉移所有進度與節點
-        const approveTakeover = async (req) => {
+        // 授權換裝置接管
+        const approveTakeover = async (req, directRoomId = null) => {
+          const targetRoomId = directRoomId || roomId.value;
           const { newUid, oldUid, nickname: tName } = req;
           try {
-            const oldPData = roomData.value.players?.[oldUid];
-            if (!oldPData) {
-              await db.ref(`rooms/${roomId.value}/public/takeoverRequests/${newUid}`).remove();
-              return;
-            }
+            const snap = await db.ref(`rooms/${targetRoomId}/public`).once('value');
+            const rVal = snap.val();
+            const oldPData = rVal?.players?.[oldUid];
+            if (!oldPData) return;
 
             const updates = {};
-            // 轉移玩家本體
             updates[`players/${newUid}`] = { ...oldPData };
             updates[`players/${oldUid}`] = null;
 
-            // 轉移被認領關係 (若有人出題對象是舊UID，換成新UID)
-            Object.entries(roomData.value.players).forEach(([u, p]) => {
+            Object.entries(rVal.players || {}).forEach(([u, p]) => {
               if (p.assignedTarget === oldUid) {
                 updates[`players/${u}/assignedTarget`] = newUid;
               }
             });
 
-            // 轉移 wordStatus
-            if (roomData.value.wordStatus?.[oldUid]) {
-              updates[`wordStatus/${newUid}`] = roomData.value.wordStatus[oldUid];
+            if (rVal.wordStatus?.[oldUid]) {
+              updates[`wordStatus/${newUid}`] = rVal.wordStatus[oldUid];
               updates[`wordStatus/${oldUid}`] = null;
             }
 
-            // 轉移 revealedWords
-            if (roomData.value.revealedWords?.[oldUid]) {
-              updates[`revealedWords/${newUid}`] = roomData.value.revealedWords[oldUid];
+            if (rVal.revealedWords?.[oldUid]) {
+              updates[`revealedWords/${newUid}`] = rVal.revealedWords[oldUid];
               updates[`revealedWords/${oldUid}`] = null;
             }
 
-            // 若舊玩家是房主，將房主權限一併移交新裝置
-            if (roomData.value.hostId === oldUid) {
+            if (rVal.hostId === oldUid) {
               updates[`hostId`] = newUid;
             }
 
-            // 轉移淘汰歷史
-            if (roomData.value.eliminationHistory) {
-              updates['eliminationHistory'] = roomData.value.eliminationHistory.map(h => ({
+            if (rVal.eliminationHistory) {
+              updates['eliminationHistory'] = rVal.eliminationHistory.map(h => ({
                 ...h,
                 targetUid: h.targetUid === oldUid ? newUid : h.targetUid,
                 helpers: (h.helpers || []).map(helper => helper === oldUid ? newUid : helper)
               }));
             }
 
-            // 轉移秘密題目節點
-            const wSnap = await db.ref(`rooms/${roomId.value}/words/${oldUid}`).once('value');
+            const wSnap = await db.ref(`rooms/${targetRoomId}/words/${oldUid}`).once('value');
             if (wSnap.exists()) {
-              await db.ref(`rooms/${roomId.value}/words/${newUid}`).set(wSnap.val());
-              await db.ref(`rooms/${roomId.value}/words/${oldUid}`).remove();
+              await db.ref(`rooms/${targetRoomId}/words/${newUid}`).set(wSnap.val());
+              await db.ref(`rooms/${targetRoomId}/words/${oldUid}`).remove();
             }
 
             updates[`takeoverRequests/${newUid}`] = null;
             updates['latestEvent'] = {
-              text: `🔄【${tName}】已由房主授權完成換裝置連線！`,
+              text: `🔄【${tName}】已完成換裝置連線！`,
               timestamp: Date.now(),
               isWin: false
             };
 
-            await db.ref(`rooms/${roomId.value}/public`).update(updates);
+            await db.ref(`rooms/${targetRoomId}/public`).update(updates);
             pendingTakeoverReq.value = null;
           } catch(err) {
             alert('授權接管失敗：' + err.message);
@@ -1323,7 +1359,7 @@
           pendingTakeoverReq.value = null;
         };
 
-        // 踢人防呆與執行
+        // 踢人防呆與出題鏈斷裂重置
         const promptKickPlayer = (uid, name) => {
           kickingTargetUid.value = uid;
           kickingTargetName.value = name;
@@ -1340,18 +1376,31 @@
             updates[`wordStatus/${tUid}`] = null;
             updates[`revealedWords/${tUid}`] = null;
 
-            // 清理出題對象關聯
-            Object.entries(roomData.value.players).forEach(([u, p]) => {
-              if (p.assignedTarget === tUid) {
-                updates[`players/${u}/assignedTarget`] = null;
-              }
-            });
+            // 若在選人或出題中踢人，必須重置出題關係防死結！
+            const curStatus = roomData.value?.status;
+            let needResetPairs = (curStatus === 'picking' || curStatus === 'setting');
 
-            updates['latestEvent'] = {
-              text: `🚪 房主已將【${tName}】移出房間`,
-              timestamp: Date.now(),
-              isWin: false
-            };
+            if (needResetPairs) {
+              Object.keys(roomData.value?.players || {}).forEach(u => {
+                updates[`players/${u}/assignedTarget`] = null;
+              });
+              updates['wordStatus'] = null;
+              updates['status'] = 'waiting'; // 安全退回等待室
+              updates['latestEvent'] = {
+                text: `⚠️ 因【${tName}】被移出，出題配對已重置，請房主重新啟動！`,
+                timestamp: Date.now(),
+                isWin: false
+              };
+            } else {
+              Object.entries(roomData.value?.players || {}).forEach(([u, p]) => {
+                if (p.assignedTarget === tUid) updates[`players/${u}/assignedTarget`] = null;
+              });
+              updates['latestEvent'] = {
+                text: `🚪 房主已將【${tName}】移出房間`,
+                timestamp: Date.now(),
+                isWin: false
+              };
+            }
 
             await db.ref(`rooms/${roomId.value}/words/${tUid}`).remove();
             await db.ref(`rooms/${roomId.value}/public`).update(updates);
@@ -1361,6 +1410,16 @@
           } catch(e) {
             alert('踢除失敗：' + e.message);
           }
+        };
+
+        // 房主強制通過裁決
+        const forceApproveWord = async (tUid) => {
+          if (!confirm(`確定要強制通過【${getPlayerName(tUid)}】的題目嗎？`)) return;
+          await db.ref(`rooms/${roomId.value}/public/wordStatus/${tUid}`).set({
+            hasWord: true,
+            isVetoed: false
+          });
+          await db.ref(`rooms/${roomId.value}/words/${tUid}/vetoVotes`).remove();
         };
 
         const isHost = computed(() => roomData.value?.hostId === currentUid.value);
@@ -1413,7 +1472,6 @@
 
         const circleNodes = computed(() => {
           if (!roomData.value?.players) return [];
-          // 只把正式玩家放入環狀圖
           const entries = Object.entries(roomData.value.players).filter(([u, p]) => p.status !== 'spectator');
           const total = entries.length;
           const cx = 160, cy = 160, r = 105;
@@ -1650,7 +1708,7 @@
         };
 
         const triggerBlindGuessChallenge = async () => {
-          if (!confirm('⚡ 確定要發動盲猜反殺嗎？（每局僅限一次！）\n請向全場大聲喊出你猜的禁說詞！\n\n猜對：其他人皆 -1 分，你獨得這些分數並成功通關！\n猜錯：你直接自爆淘汰，其他人皆 +1 分！')) return;
+          if (!confirm('⚡ 確定要發動盲猜反殺嗎？（每局僅限一次！）\n請向全場大聲喊出你猜的禁說詞！\n\n猜對：吸走當前存活者各 1 分，獨得扣分＋冠軍分！\n猜錯：你直接自爆淘汰，其餘存活者各 +1 分！')) return;
           initAudio();
           await db.ref(`rooms/${roomId.value}/public/pendingGuess`).set({
             uid: currentUid.value,
@@ -1663,46 +1721,58 @@
           });
         };
 
+        // 判定盲猜：吸分嚴格限定在局內存活者，分數保底 >= 0
         const judgeBlindGuess = async (isCorrect) => {
           const guesserUid = roomData.value.pendingGuess.uid;
           const guesserName = roomData.value.pendingGuess.name;
-          const activePlayers = Object.entries(roomData.value.players).filter(([u, p]) => p.status !== 'spectator');
-          const totalOthers = activePlayers.length - 1;
           const updates = {};
           const history = roomData.value.eliminationHistory || [];
-          const total = activePlayers.length;
+          const total = activePlayerCount.value;
+          const championBonus = total + 1; // 冠軍等額分
+
+          // 嚴格過濾：僅限當前存活且非觀戰的局內對手！
+          const aliveOpponents = Object.entries(roomData.value.players).filter(([u, p]) => {
+            return u !== guesserUid && p.status === 'alive';
+          });
 
           if (isCorrect) {
+            const stealCount = aliveOpponents.length;
+            const totalGain = stealCount + championBonus; // 吸分 + 冠軍名次分
+
             updates[`players/${guesserUid}/status`] = 'won';
             updates[`players/${guesserUid}/hasGuessed`] = true;
             updates[`players/${guesserUid}/rank`] = 1;
 
-            activePlayers.forEach(([u, p]) => {
-              const curTotal = p.totalScore ?? 0;
-              const curRound = p.roundScore || 0;
-              const bList = [...(p.breakdown || [])];
+            const curTotal = roomData.value.players[guesserUid]?.totalScore ?? 0;
+            const curRound = roomData.value.players[guesserUid]?.roundScore || 0;
+            const gList = [...(roomData.value.players[guesserUid]?.breakdown || [])];
+            gList.push(`盲猜通關 +${totalGain}`);
 
-              if (u === guesserUid) {
-                bList.push(`盲猜通關 +${totalOthers}`);
-                updates[`players/${u}/roundScore`] = curRound + totalOthers;
-                updates[`players/${u}/totalScore`] = curTotal + totalOthers;
-                updates[`players/${u}/score`] = curTotal + totalOthers;
-                updates[`players/${u}/breakdown`] = bList;
-              } else {
-                bList.push(`被【${guesserName}】盲猜中 -1`);
-                updates[`players/${u}/roundScore`] = curRound - 1;
-                updates[`players/${u}/totalScore`] = curTotal - 1;
-                updates[`players/${u}/score`] = curTotal - 1;
-                updates[`players/${u}/breakdown`] = bList;
-              }
+            updates[`players/${guesserUid}/roundScore`] = curRound + totalGain;
+            updates[`players/${guesserUid}/totalScore`] = curTotal + totalGain;
+            updates[`players/${guesserUid}/score`] = curTotal + totalGain;
+            updates[`players/${guesserUid}/breakdown`] = gList;
+
+            // 存活對手扣 1 分，保底 >= 0
+            aliveOpponents.forEach(([u, p]) => {
+              const cTotal = p.totalScore ?? 0;
+              const cRound = p.roundScore || 0;
+              const bList = [...(p.breakdown || [])];
+              bList.push(`被【${guesserName}】盲猜中 -1`);
+
+              updates[`players/${u}/roundScore`] = cRound - 1;
+              updates[`players/${u}/totalScore`] = Math.max(0, cTotal - 1);
+              updates[`players/${u}/score`] = Math.max(0, cTotal - 1);
+              updates[`players/${u}/breakdown`] = bList;
             });
 
             updates['latestEvent'] = {
-              text: `🎉【${guesserName}】盲猜成功！其他人各 -1 分，${guesserName} 獨拿 +${totalOthers} 分通關！`,
+              text: `🎉【${guesserName}】盲猜成功！吸走存活者各 1 分，狂得 +${totalGain} 分通關！`,
               timestamp: Date.now(),
               isWin: true
             };
           } else {
+            // 猜錯自爆出局
             const rank = total - history.length;
             const rankScore = history.length + 1;
 
@@ -1719,24 +1789,23 @@
             updates[`players/${guesserUid}/score`] = curTargetTotal + rankScore;
             updates[`players/${guesserUid}/breakdown`] = guesserBreakdown;
 
-            activePlayers.forEach(([u, p]) => {
-              if (u !== guesserUid) {
-                const cT = p.totalScore ?? 0;
-                const cR = p.roundScore || 0;
-                const bList = [...(p.breakdown || [])];
-                bList.push(`【${guesserName}】盲猜自爆 +1`);
-                updates[`players/${u}/roundScore`] = cR + 1;
-                updates[`players/${u}/totalScore`] = cT + 1;
-                updates[`players/${u}/score`] = cT + 1;
-                updates[`players/${u}/breakdown`] = bList;
-              }
+            // 僅補償存活對手
+            aliveOpponents.forEach(([u, p]) => {
+              const cT = p.totalScore ?? 0;
+              const cR = p.roundScore || 0;
+              const bList = [...(p.breakdown || [])];
+              bList.push(`【${guesserName}】自爆補償 +1`);
+              updates[`players/${u}/roundScore`] = cR + 1;
+              updates[`players/${u}/totalScore`] = cT + 1;
+              updates[`players/${u}/score`] = cT + 1;
+              updates[`players/${u}/breakdown`] = bList;
             });
 
             history.push({ targetUid: guesserUid, rank, helpers: [] });
             updates['eliminationHistory'] = history;
 
             updates['latestEvent'] = {
-              text: `💀【${guesserName}】盲猜失敗自爆淘汰！(第 ${rank} 名)，其餘所有人各 +1 分！`,
+              text: `💀【${guesserName}】盲猜自爆淘汰！(第 ${rank} 名)，其餘存活者各 +1 分！`,
               timestamp: Date.now(),
               isWin: false
             };
@@ -1748,6 +1817,9 @@
 
           updates['pendingGuess'] = null;
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
+
+          // 自動收斂檢查：若盲猜結束後存活者 <= 1，自動結算本局！
+          setTimeout(checkAutoEndRound, 500);
         };
 
         const dismissBlindGuess = async () => {
@@ -1826,6 +1898,18 @@
 
           await db.ref(`rooms/${roomId.value}/public`).update(updates);
           eliminatingTargetUid.value = null;
+
+          // 自動收斂檢查：若剩餘存活人數 <= 1，自動直接結算
+          setTimeout(checkAutoEndRound, 500);
+        };
+
+        // 自動結算檢查
+        const checkAutoEndRound = async () => {
+          if (!roomData.value || roomData.value.status !== 'playing') return;
+          const remainingAlive = Object.values(roomData.value.players || {}).filter(p => p.status === 'alive');
+          if (remainingAlive.length <= 1) {
+            await endGameAndScore();
+          }
         };
 
         const lastElimination = computed(() => {
@@ -1834,25 +1918,28 @@
           return history[history.length - 1];
         });
 
+        // 核心解法：撤銷淘汰時，因題目已曝光，系統自動替換新詞！
         const undoLastElimination = async () => {
           const history = [...(roomData.value?.eliminationHistory || [])];
           if (history.length === 0) return;
           const last = history.pop();
           const rankScore = history.length + 1;
+          const tUid = last.targetUid;
+          const tName = getPlayerName(tUid);
 
           const updates = {};
-          const tTotal = roomData.value.players[last.targetUid]?.totalScore ?? 0;
-          const tRound = roomData.value.players[last.targetUid]?.roundScore ?? 0;
-          const tBreakdown = [...(roomData.value.players[last.targetUid]?.breakdown || [])];
+          const tTotal = roomData.value.players[tUid]?.totalScore ?? 0;
+          const tRound = roomData.value.players[tUid]?.roundScore ?? 0;
+          const tBreakdown = [...(roomData.value.players[tUid]?.breakdown || [])];
           tBreakdown.pop();
 
-          updates[`players/${last.targetUid}/status`] = 'alive';
-          updates[`players/${last.targetUid}/rank`] = null;
-          updates[`players/${last.targetUid}/roundScore`] = Math.max(0, tRound - rankScore);
-          updates[`players/${last.targetUid}/totalScore`] = Math.max(0, tTotal - rankScore);
-          updates[`players/${last.targetUid}/score`] = Math.max(0, tTotal - rankScore);
-          updates[`players/${last.targetUid}/breakdown`] = tBreakdown;
-          updates[`revealedWords/${last.targetUid}`] = null;
+          updates[`players/${tUid}/status`] = 'alive';
+          updates[`players/${tUid}/rank`] = null;
+          updates[`players/${tUid}/roundScore`] = Math.max(0, tRound - rankScore);
+          updates[`players/${tUid}/totalScore`] = Math.max(0, tTotal - rankScore);
+          updates[`players/${tUid}/score`] = Math.max(0, tTotal - rankScore);
+          updates[`players/${tUid}/breakdown`] = tBreakdown;
+          updates[`revealedWords/${tUid}`] = null; // 隱藏曝光題目
 
           (last.helpers || []).forEach(hUid => {
             const hTotal = roomData.value.players[hUid]?.totalScore ?? 0;
@@ -1866,9 +1953,21 @@
             updates[`players/${hUid}/breakdown`] = hBreakdown;
           });
 
+          // 自動隨機換一個新詞防作弊
+          const catKey = roomData.value.categoryKey || 'phrases';
+          let pool = EXPANDED_BANKS[catKey] || EXPANDED_BANKS.phrases;
+          const newWord = pool[Math.floor(Math.random() * pool.length)];
+
+          await db.ref(`rooms/${roomId.value}/words/${tUid}`).set({
+            authorUid: 'system',
+            word: newWord,
+            category: '系統換詞',
+            vetoVotes: {}
+          });
+
           updates['eliminationHistory'] = history;
           updates['latestEvent'] = {
-            text: `↩️ 撤銷了剛才對【${getPlayerName(last.targetUid)}】的淘汰判定`,
+            text: `↩️ 撤銷淘汰【${tName}】！因原詞已曝光，系統已為其抽換全新題目！`,
             timestamp: Date.now(),
             isWin: false
           };
@@ -1883,6 +1982,7 @@
           newHostUidSelected.value = '';
         };
 
+        // 結束遊戲結算：最後倖存者拿 (N+1) 冠軍分
         const endGameAndScore = async () => {
           const updates = { status: 'ended' };
           const total = activePlayerCount.value;
@@ -1912,10 +2012,11 @@
           await db.ref(`rooms/${roomId.value}/public`).update({ status: 'grand_finale' });
         };
 
+        // 排行榜支援並列計算 (Tie)
         const sortedResults = computed(() => {
           if (!roomData.value?.players) return [];
           const revealed = roomData.value.revealedWords || {};
-          return Object.entries(roomData.value.players).map(([uid, p]) => {
+          const list = Object.entries(roomData.value.players).map(([uid, p]) => {
             let statusDesc = `第 ${p.rank || 1} 名`;
             if (p.status === 'won') statusDesc = '盲猜成功通關';
             else if (p.status === 'alive') statusDesc = '倖存第 1 名';
@@ -1923,18 +2024,31 @@
             return {
               uid,
               name: p.name,
-              totalScore: p.totalScore ?? p.score ?? 0,
+              totalScore: Math.max(0, p.totalScore ?? p.score ?? 0),
               roundScore: p.roundScore || 0,
               statusDesc,
               breakdown: p.breakdown || [],
               word: p.status === 'spectator' ? '觀戰無題目' : (wordsData.value[uid]?.word || revealed[uid] || '無')
             };
           }).sort((a, b) => b.totalScore - a.totalScore);
+
+          // 計算並列排名
+          let curRank = 1;
+          for (let i = 0; i < list.length; i++) {
+            if (i > 0 && list[i].totalScore === list[i - 1].totalScore) {
+              list[i].finalRank = list[i - 1].finalRank;
+            } else {
+              list[i].finalRank = curRank;
+            }
+            curRank++;
+          }
+
+          return list;
         });
 
         const podiumResults = computed(() => sortedResults.value.slice(0, 3));
 
-        // 再玩一局：觀戰者自動轉正為正式玩家！
+        // 再玩一局：觀戰者自動轉正
         const resetRoom = async () => {
           try {
             const uids = Object.keys(roomData.value?.players || {});
@@ -1943,11 +2057,11 @@
             const nextRound = (roomData.value?.currentRound || 1) + 1;
             const pReset = {};
             for (let u of uids) {
-              const preservedTotal = roomData.value.players[u].totalScore ?? 0;
+              const preservedTotal = Math.max(0, roomData.value.players[u].totalScore ?? 0);
               pReset[u] = {
                 name: roomData.value.players[u].name,
                 isHost: u === roomData.value.hostId,
-                status: 'alive', // 包含原 spectator 自動轉為 alive！
+                status: 'alive',
                 hasGuessed: false,
                 totalScore: preservedTotal,
                 roundScore: 0,
@@ -2024,7 +2138,7 @@
           isAllPairingComplete, hasDeadlock, circleNodes, circleLinks,
           readyPlayerCount, mySecretWordStatus, playingTab, liveScoreList, amIEliminated, amIWinner, amISpectator, myRevealedWord,
           canIBigGuess, currentCategoryTitle,
-          showManageModal, kickingTargetUid, kickingTargetName, promptKickPlayer, confirmKickPlayer,
+          showManageModal, kickingTargetUid, kickingTargetName, promptKickPlayer, confirmKickPlayer, forceApproveWord,
           takeoverWaiting, pendingTakeoverName, pendingTakeoverReq, approveTakeover, rejectTakeover, cancelTakeoverRequest,
           createRoom, joinRoom, startInitialPhase, switchToRandomAssignment, confirmMyTarget,
           unlockMyTarget, resetAllPicks, startWritingPhaseFromPicking, submitWord, toggleVeto,
